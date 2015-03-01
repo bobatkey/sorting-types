@@ -1,15 +1,6 @@
 module Linear where
 
-postulate
-      Level : Set
-      lzero  : Level
-      suc   : Level -> Level
-      max   : Level -> Level -> Level
-
-{-# BUILTIN LEVEL     Level #-}
-{-# BUILTIN LEVELZERO lzero  #-}
-{-# BUILTIN LEVELSUC  suc   #-}
-{-# BUILTIN LEVELMAX  max   #-}
+open import Agda.Primitive using (Level; lzero; lsuc; _⊔_)
 
 data _==_ {l : Level}{A : Set l}(a : A) : A -> Set l where
   refl : a == a
@@ -30,8 +21,6 @@ data Nat : Set where
   succ : Nat -> Nat
 
 {-# BUILTIN NATURAL Nat #-}
-{-# BUILTIN SUC succ #-}
-{-# BUILTIN ZERO zero #-}
 
 _+N_ : Nat -> Nat -> Nat
 zero   +N n = n
