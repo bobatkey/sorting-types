@@ -7,7 +7,6 @@ data _==_ {l : Level}{A : Set l}(a : A) : A -> Set l where
 infix 0 _==_
 
 {-# BUILTIN EQUALITY _==_ #-}
-{-# BUILTIN REFL refl #-}
 
 record One : Set where
   constructor <>
