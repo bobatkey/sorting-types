@@ -7,7 +7,6 @@ data _==_ {l : Level}{A : Set l}(a : A) : A -> Set l where
 infix 0 _==_
 
 {-# BUILTIN EQUALITY _==_ #-}
-{-# BUILTIN REFL refl #-}
 
 record One : Set where
   constructor <>
@@ -74,6 +73,10 @@ nil       ++ l2 = l2
 ++nil nil      = refl
 ++nil (x :: l) rewrite ++nil l = refl
 
+++Assoc : forall {X} (l1 l2 l3 : List X) -> ((l1 ++ l2) ++ l3) == (l1 ++ (l2 ++ l3))
+++Assoc nil l2 l3 = refl
+++Assoc (x :: l1) l2 l3 rewrite ++Assoc l1 l2 l3 = refl
+
 -- This is the one from the Coq standard library. It represents
 -- permutations as a sequence of individual swaps.
 -- http://coq.inria.fr/stdlib/Coq.Sorting.Permutation.html
@@ -117,8 +120,7 @@ permBubble (y :: l1) l2 = permTrans permSwap (permSkip (permBubble l1 l2))
 
 -- FIXME: should just use the fact that ++ is assoc for ==
 permAssoc : {X : Set} -> (l1 l2 l3 : List X) -> ((l1 ++ l2) ++ l3) >< (l1 ++ (l2 ++ l3))
-permAssoc nil       l2 l3 = permRefl (l2 ++ l3)
-permAssoc (x :: l1) l2 l3 = permSkip (permAssoc l1 l2 l3)
+permAssoc l1 l2 l3 rewrite ++Assoc l1 l2 l3 = permRefl _
 
 permSwap++ : {X : Set} -> (l1 l2 : List X) -> (l1 ++ l2) >< (l2 ++ l1)
 permSwap++ nil       l2 rewrite ++nil l2 = permRefl l2
