@@ -158,9 +158,20 @@ zero ==Nat? succ n = no (λ ())
 succ m ==Nat? zero = no (λ ())
 succ m ==Nat? succ n = mapDec (cong succ) succInj (m ==Nat? n)
 
-data List {a} (A : Set a) : Set a where
-  nil  : List A
-  _::_ : A -> List A -> List A
+data _<=_ : Nat -> Nat -> Set where
+  z<=n : forall {n} -> zero <= n
+  s<=s : forall {m n} -> m <= n -> succ m <= succ n
+
+_<_ : Nat -> Nat -> Set
+m < n = succ m <= n
+
+_<=?_ : forall m n -> Dec (m <= n)
+zero <=? n = yes z<=n
+succ m <=? zero = no \ ()
+succ m <=? succ n = mapDec s<=s (\ { (s<=s le) -> le }) (m <=? n)
+
+_<?_ : forall m n -> Dec (m < n)
+m <? n = succ m <=? n
 
 record Sg {a b} (A : Set a) (B : A -> Set b) : Set (a ⊔ b) where
   constructor _,_
@@ -187,19 +198,23 @@ _*?_ (yes a) (yes b) = yes (a , b)
 _*?_ (yes a) (no nb) = no (\ { (_ , b) -> nb b })
 _*?_ (no na) B? = no (\ { (a , b) -> na a })
 
+data Fin : Nat -> Set where
+  zero : forall {n} -> Fin (succ n)
+  succ : forall {n} -> Fin n -> Fin (succ n)
+
+from< : forall {m n} -> m < n -> Fin n
+from< {zero} (s<=s le) = zero
+from< {succ m} (s<=s le) = succ (from< le)
+
+infix 6 #_
+#_ : forall {n} m {less : Auto (m <? n)} -> Fin n
+#_ m {less} = from< (toWitness less)
+
 infixr 5 _::_
 
-::Inj : forall {a} {A : Set a} {x0 x1 : A} {l0 l1} ->
-        x0 :: l0 == x1 :: l1 -> (x0 == x1) * (l0 == l1)
-::Inj refl = refl , refl
-
---------------------------------------------------------------------------------
-data LTy : Set where
-  KEY           : LTy
-  LIST          : LTy -> LTy
-  _-o_ _<**>_ _&_  : LTy -> LTy -> LTy
-
-infixr 5 _-o_
+data List {a} (A : Set a) : Set a where
+  nil  : List A
+  _::_ : A -> List A -> List A
 
 --------------------------------------------------------------------------------
 -- Permutations and so on
@@ -211,6 +226,15 @@ fold : forall {x y} {X : Set x} {Y : Set y} -> Y -> (X -> Y -> Y) -> List X -> Y
 fold n c nil = n
 fold n c (x :: l) = c x (fold n c l)
 
+length : forall {x X} -> List {x} X -> Nat
+length = fold zero \ _ -> succ
+
+infix 5 _!!_
+_!!_ : forall {x X} (xs : List {x} X) -> Fin (length xs) -> X
+nil !! ()
+(x :: xs) !! zero = x
+(x :: xs) !! succ i = xs !! i
+
 ++nil : forall {x} {X : Set x} -> (l : List X) -> l ++ nil == l
 ++nil nil      = refl
 ++nil (x :: l) rewrite ++nil l = refl
@@ -218,6 +242,10 @@ fold n c (x :: l) = c x (fold n c l)
 ++Assoc : forall {x} {X : Set x} (l1 l2 l3 : List X) -> ((l1 ++ l2) ++ l3) == (l1 ++ (l2 ++ l3))
 ++Assoc nil l2 l3 = refl
 ++Assoc (x :: l1) l2 l3 rewrite ++Assoc l1 l2 l3 = refl
+
+::Inj : forall {a} {A : Set a} {x0 x1 : A} {l0 l1} ->
+        x0 :: l0 == x1 :: l1 -> (x0 == x1) * (l0 == l1)
+::Inj refl = refl , refl
 
 -- This is the one from the Coq standard library. It represents
 -- permutations as a sequence of individual swaps.
@@ -274,6 +302,14 @@ zip f nil (b :: bs) = nil
 zip f (a :: as) nil = nil
 zip f (a :: as) (b :: bs) = f a b :: zip f as bs
 
+--------------------------------------------------------------------------------
+data LTy : Set where
+  KEY           : LTy
+  LIST          : LTy -> LTy
+  _-o_ _<**>_ _&_  : LTy -> LTy -> LTy
+
+infixr 5 _-o_
+
 data _elem_ {x} {X : Set x} (x : X) : List X -> Set where
   here : forall {l} -> x elem (x :: l)
   there : forall {l y} -> x elem l -> x elem (y :: l)
@@ -281,6 +317,12 @@ data _elem_ {x} {X : Set x} (x : X) : List X -> Set where
 index : forall {x} {X : Set x} {x : X} {l} -> x elem l -> Nat
 index here = zero
 index (there e) = succ (index e)
+
+infix 5 _!!Elem_
+_!!Elem_ : forall {x X} (xs : List {x} X) i -> (xs !! i) elem xs
+nil !!Elem ()
+(x :: xs) !!Elem zero = here
+(x :: xs) !!Elem succ i = there (xs !!Elem i)
 
 Ctx : Set
 Ctx = List LTy

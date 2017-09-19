@@ -77,7 +77,7 @@ id-r T = lam var
 test-list : (KEY :: KEY :: nil) |- LIST KEY
 test-list = app (app cons (var (there here))) (app (app cons (var here)) nil)
 
-test-list-r : (tt :: tt :: nil) |-r test-list
+test-list-r : fullPartition |-r test-list
 test-list-r = app {G0 = ff :: tt :: nil}
                   (app {G0 = ff :: ff :: nil} cons var)
                   (app {G0 = tt :: ff :: nil} (app cons var) nil)
@@ -261,3 +261,29 @@ inferResources (proj1 t) =
   mapDec (mapSg id proj1) (mapSg id \ { (proj1 r) -> r }) (inferResources t)
 inferResources (proj2 t) =
   mapDec (mapSg id proj2) (mapSg id \ { (proj2 r) -> r }) (inferResources t)
+
+--------------------------------------------------------------------------------
+-- insertion sort, but hopefully nicer
+
+infixl 4 _$$_
+_$$_ : forall {D S T} -> D |- (S -o T) -> D |- S -> D |- T
+_$$_ = app
+
+var! : forall {D} m {less : Auto (m <? length D)} -> D |- (D !! #_ m {less})
+var! m = var (_ !!Elem # m)
+
+insert : forall {D} -> D |- (LIST KEY -o KEY -o LIST KEY)
+insert = foldr (lam (cons $$ var here $$ nil))
+               ((lam (lam (lam (cmp $$ var! 2
+                                    $$ var! 0
+                                    $$ (lam (lam (cons $$ var! 1
+                                                       $$ (proj2 (var! 3) $$ var! 0)))
+                                      & lam (lam (cons $$ var! 0
+                                                       $$ (cons $$ var! 1
+                                                                $$ proj1 (var! 3))))))))))
+
+insertion-sort : forall {D} -> D |- (LIST KEY -o LIST KEY)
+insertion-sort = foldr nil (lam (lam (insert $$ proj2 (var! 0) $$ var! 1)))
+
+test-inference : _
+test-inference = {!inferResources (insertion-sort {nil})!}
