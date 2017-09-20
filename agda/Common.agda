@@ -118,6 +118,9 @@ toWitness : forall {x X} {X? : Dec {x} X} -> Auto X? -> X
 toWitness {X? = yes x} auto = x
 toWitness {X? = no nx} ()
 
+byDec : forall {x X} (X? : Dec {x} X) {auto : Auto X?} -> X
+byDec X? {auto} = toWitness auto
+
 DecEq : forall {x} -> Set x -> Set x
 DecEq X = (x y : X) -> Dec (x == y)
 
@@ -189,6 +192,10 @@ mapSg : forall {a a' b b'} {A : Set a} {A' : Set a'} {B : A -> Set b} {B' : A' -
         (fa : A -> A') -> (forall {a} -> B a -> B' (fa a)) -> Sg A B -> Sg A' B'
 mapSg fa fb (a , b) = fa a , fb b
 
+uncurry : forall {a b c} {A : Set a} {B : A -> Set b} {C : (a : A) -> B a -> Set c} ->
+          ((a : A) (b : B a) -> C a b) -> (ab : Sg A B) -> C (fst ab) (snd ab)
+uncurry f (a , b) = f a b
+
 map* : forall {a a' b b'} {A : Set a} {A' : Set a'} {B : Set b} {B' : Set b'} ->
        (A -> A') -> (B -> B') -> A * B -> A' * B'
 map* fa fb = mapSg fa fb
@@ -197,6 +204,9 @@ _*?_ : forall {a b A B} -> Dec {a} A -> Dec {b} B -> Dec (A * B)
 _*?_ (yes a) (yes b) = yes (a , b)
 _*?_ (yes a) (no nb) = no (\ { (_ , b) -> nb b })
 _*?_ (no na) B? = no (\ { (a , b) -> na a })
+
+==* : forall {a b A B} {p q : _*_ {a} {b} A B} -> p == q -> (fst p == fst q) * (snd p == snd q)
+==* refl = refl , refl
 
 data Fin : Nat -> Set where
   zero : forall {n} -> Fin (succ n)
@@ -352,6 +362,23 @@ allTags : forall {x y} {X : Set x} {Y : Set y} {l : List X} -> All (\ _ -> Y) l 
 allTags nil = nil
 allTags (y :: ys) = y :: allTags ys
 
+takeDropAll : forall {x p} {X : Set x} {P : X -> Set p} l0 {l1 : List X} ->
+              All P (l0 ++ l1) -> All P l0 * All P l1
+takeDropAll nil ps = nil , ps
+takeDropAll (x :: l0) (p :: ps) with takeDropAll l0 ps
+... | pxs , pys = p :: pxs , pys
+
+++All-takeDropAll : forall {x p} {X : Set x} {P : X -> Set p} l0 {l1 : List X}
+                    (ps : All P (l0 ++ l1)) -> uncurry _++All_ (takeDropAll l0 ps) == ps
+++All-takeDropAll nil ps = refl
+++All-takeDropAll (x :: l0) (p :: ps) = cong (p ::_) (++All-takeDropAll l0 ps)
+
+takeDropAll-++All : forall {x p} {X : Set x} {P : X -> Set p} {xs ys}
+                    (pxs : All P xs) (pys : All P ys) ->
+                    takeDropAll xs (pxs ++All pys) == (pxs , pys)
+takeDropAll-++All nil pys = refl
+takeDropAll-++All (p :: pxs) pys rewrite takeDropAll-++All pxs pys = refl
+
 allTagsInj : forall {x y} {X : Set x} {Y : Set y} {l : List X} {ps qs : All (\ _ -> Y) l} ->
              allTags ps == allTags qs -> ps == qs
 allTagsInj {ps = nil} {nil} eq = refl
@@ -364,10 +391,18 @@ zipAll-zip : forall {x a b c} {X : Set x} {A : Set a} {B : Set b} {C : Set c}
 zipAll-zip f nil nil = refl
 zipAll-zip f (p :: ps) (q :: qs) = cong2 _::_ refl (zipAll-zip f ps qs)
 
-All::Inj : forall {x p} {X : Set x} {P : X -> Set p}
+::AllInj : forall {x p} {X : Set x} {P : X -> Set p}
            {x : X} {l : List X} {p p' : P x} {ps ps' : All P l} ->
            _==_ {A = All P (x :: l)} (p :: ps) (p' :: ps') -> (p == p') * (ps == ps')
-All::Inj refl = refl , refl
+::AllInj refl = refl , refl
+
+++AllInj : forall {x p} {X : Set x} {P : X -> Set p}
+           {xs ys : List X} (pxs pxs' : All P xs) {pys pys' : All P ys} ->
+           (pxs ++All pys) == (pxs' ++All pys') -> (pxs == pxs') * (pys == pys')
+++AllInj nil nil eq = refl , eq
+++AllInj (px :: pxs) (px' :: pxs') eq with ::AllInj eq
+... | pxeq , pseq with ++AllInj pxs pxs' pseq
+...   | pxseq , pyseq = cong2 _::_ pxeq pxseq , pyseq
 
 ==All? : forall {x p} {X : Set x} {P : X -> Set p} {l : List X} ->
          (forall {x} -> DecEq (P x)) -> DecEq (All P l)
@@ -375,8 +410,8 @@ All::Inj refl = refl , refl
 ==All? eq? (p :: ps) (q :: qs) with eq? p q
 ==All? eq? (p :: ps) (.p :: qs) | yes refl with ==All? eq? ps qs
 ==All? eq? (p :: ps) (.p :: .ps) | yes refl | yes refl = yes refl
-==All? eq? (p :: ps) (.p :: qs) | yes refl | no np = no (np o snd o All::Inj)
-==All? eq? (p :: ps) (q :: qs) | no np = no (np o fst o All::Inj)
+==All? eq? (p :: ps) (.p :: qs) | yes refl | no np = no (np o snd o ::AllInj)
+==All? eq? (p :: ps) (q :: qs) | no np = no (np o fst o ::AllInj)
 
 -- assign a boolean to each element of a list
 {-+}
