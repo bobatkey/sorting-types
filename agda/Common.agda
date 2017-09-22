@@ -337,6 +337,23 @@ nil !!Elem ()
 Ctx : Set
 Ctx = List LTy
 
+--------------------------------------------------------------------------------
+-- semantics of types
+
+[[_]]T : LTy -> Set
+[[ KEY ]]T      = Nat
+[[ LIST T ]]T   = List [[ T ]]T
+[[ S -o T ]]T   = [[ S ]]T -> [[ T ]]T
+[[ S <**> T ]]T = [[ S ]]T * [[ T ]]T
+[[ S & T ]]T    = [[ S ]]T * [[ T ]]T
+
+[[_]]C : Ctx -> Set
+[[ nil ]]C    = One
+[[ S :: G ]]C = [[ S ]]T * [[ G ]]C
+
+--------------------------------------------------------------------------------
+-- resource annotations to contexts
+
 data All {x p} {X : Set x} (P : X -> Set p) : List X -> Set (x ⊔ p) where
   nil : All P nil
   _::_ : forall {x l} (p : P x) (ps : All P l) -> All P (x :: l)

@@ -1,4 +1,4 @@
-module Explicit where
+module Intrinsic where
 
 open import Common
 --------------------------------------------------------------------------------
@@ -43,17 +43,6 @@ insertion-sort : nil |- (LIST KEY -o LIST KEY)
 insertion-sort = foldr nil (lam (lam (insert $$ proj2 var $$ var)))
 
 --------------------------------------------------------------------------------
-[[_]]T : LTy -> Set
-[[ KEY ]]T      = Nat
-[[ LIST T ]]T   = List [[ T ]]T
-[[ S -o T ]]T   = [[ S ]]T -> [[ T ]]T
-[[ S <**> T ]]T = [[ S ]]T * [[ T ]]T
-[[ S & T ]]T    = [[ S ]]T * [[ T ]]T
-
-[[_]]C : Ctx -> Set
-[[ nil ]]C    = One
-[[ S :: G ]]C = [[ S ]]T * [[ G ]]C
-
 [[_]]p : forall {G G'} -> G >< G' -> [[ G ]]C -> [[ G' ]]C
 [[ permNil ]]p         <>          = <>
 [[ permSkip p ]]p      (x , g)     = x , [[ p ]]p g

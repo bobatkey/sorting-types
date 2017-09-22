@@ -1,4 +1,4 @@
-module Implicit where
+module Extrinsic where
 
 open import Common
 
@@ -252,5 +252,5 @@ insertion-sort-r : nil |-r insertion-sort {nil}
 insertion-sort-r with byDec (inferResources (insertion-sort {nil}))
 ... | nil , b = b
 
---test-inference : _
---test-inference = {!inferResources (insertion-sort {nil})!}
+--------------------------------------------------------------------------------
+-- semantics
