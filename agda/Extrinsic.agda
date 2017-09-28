@@ -433,3 +433,7 @@ fundamental (pm {G} {G0} {S} {T} {U} {subres = subres} r0 r1) K g phi
 fundamental (rl & rr) K g phi = fundamental rl K g phi , fundamental rr K g phi
 fundamental (proj1 r) K g phi = fst (fundamental r K g phi)
 fundamental (proj2 r) K g phi = snd (fundamental r K g phi)
+
+isPermutation : forall {t : nil |- (LIST KEY -o LIST KEY)} (r : nil |-r t) l ->
+                ([[ r ]]r <> l) >< l
+isPermutation r l = repList l ([[ r ]]r <> l) (fundamental r nil <> permNil l l (listRep l))
