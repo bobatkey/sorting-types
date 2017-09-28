@@ -54,15 +54,6 @@ split nil           g = <> , g
 split (T :: G0) (t , g) with split G0 g
 ...                     | g0 , g1 = (t , g0) , g1
 
-compare : {X : Set} -> Nat -> Nat -> ((Nat -> Nat -> X) * (Nat -> Nat -> X)) -> X
-compare m n (GTE , LT) with compareNat m n
-compare m .(succ (m +N k)) (GTE , LT) | lt .m k  = LT (succ (m +N k)) m
-compare .(n +N k) n        (GTE , LT) | gte k .n = GTE (n +N k) n
-
-foldright : {X Y : Set} -> X -> (Y -> (List Y * X) -> X) -> List Y -> X
-foldright n c nil       = n
-foldright n c (y :: ys) = c y (ys , foldright n c ys)
-
 [[_]]t : forall {G T} -> G |- T -> [[ G ]]C -> [[ T ]]T
 [[ var ]]t         (t , <>) = t
 [[ lam t ]]t       g  = \ v -> [[ t ]]t (v , g)
@@ -86,45 +77,10 @@ sorter = [[ insertion-sort ]]t <>
 
 --------------------------------------------------------------------------------
 -- Logical Predicates to prove the permutation property
-KeySet : Set
-KeySet = List Nat
-
-[_|=_contains_] : KeySet -> (T : LTy) -> [[ T ]]T -> Set
-[ K |= KEY contains n ]            = (n :: nil) >< K
-[ K |= LIST T contains nil ]       = nil >< K
-[ K |= LIST T contains (t :: ts) ] = Sg KeySet \ K1 -> Sg KeySet \ K2 -> (K1 ++ K2) >< K * [ K1 |= T contains t ] * [ K2 |= LIST T contains ts ]
-[ K |= S -o T contains f ]         = forall K' s -> [ K' |= S contains s ] -> [ K ++ K' |= T contains f s ]
-[ K |= S <**> T contains (s , t) ] = Sg KeySet \ K1 -> Sg KeySet \ K2 -> (K1 ++ K2) >< K * [ K1 |= S contains s ] * [ K2 |= T contains t ]
-[ K |= S & T contains (s , t) ]    = [ K |= S contains s ] * [ K |= T contains t ]
-
-repList : forall K K' -> [ K |= LIST KEY contains K' ] -> K' >< K
-repList K nil       phi                           rewrite nilPerm phi    = permRefl nil
-repList K (k :: ks) (K1 , K2 , phi , psi1 , psi2) rewrite singlPerm psi1 = permTrans (permSkip (repList _ _ psi2)) phi
-
-listRep : forall K -> [ K |= LIST KEY contains K ]
-listRep nil      = permNil
-listRep (k :: K) = (k :: nil) , K , permRefl (k :: K) , permRefl (k :: nil) , listRep K
 
 [_|=_*contains_] : KeySet -> (G : Ctx) -> [[ G ]]C -> Set
 [ K |= nil    *contains <>    ] = nil >< K
 [ K |= T :: G *contains t , g ] = Sg KeySet \ K1 -> Sg KeySet \ K2 -> (K1 ++ K2) >< K * [ K1 |= T contains t ] * [ K2 |= G *contains g ]
-
-preservePerm : forall {K K'} -> (T : LTy) -> (x : [[ T ]]T) -> K >< K' -> [ K |= T contains x ] -> [ K' |= T contains x ]
-preservePerm KEY        n         p prf = permTrans prf p
-preservePerm (LIST T)   nil       p phi  = permTrans phi p
-preservePerm (LIST T)   (t :: ts) p (K1 , K2 , p' , r1 , r2) = K1 , K2 , permTrans p' p , r1 , r2
-preservePerm (S -o T)   f         p prf = \ K' s x -> preservePerm T (f s) (permAppL p) (prf K' s x)
-preservePerm (S <**> T) (s , t)   p (K1 , K2 , p' , r1 , r2) = K1 , K2 , permTrans p' p , r1 , r2
-preservePerm (S & T)    (s , t)   p (r1 , r2) = preservePerm S s p r1 , preservePerm T t p r2
-
-lem-1 : forall {A : Set} -> (l0 l1 l2 : List A) -> ((l2 ++ l0) ++ l1) >< ((l0 ++ l1) ++ l2)
-lem-1 l0 l1 l2 = permTrans (permAppL (permSwap++ l2 l0))
-                           (permTrans (permAssoc l0 l2 l1) 
-                                      (permTrans (permAppR l0 (permSwap++ l2 l1))
-                                                 (permSymm (permAssoc l0 l1 l2))))
-
-lem-2 : forall {A : Set} -> (l0 l1 l2 : List A) -> ((l2 ++ l1) ++ l0) >< ((l0 ++ l1) ++ l2)
-lem-2 l0 l1 l2 = permTrans (permAppL (permSwap++ l2 l1)) (permTrans (permSwap++ (l1 ++ l2) l0) (permSymm (permAssoc l0 l1 l2)))
 
 foldright-welltyped : forall {T S} n f ->
                       [ nil |= T contains n ] ->
