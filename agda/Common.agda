@@ -1,6 +1,6 @@
 module Common where
 
-open import Agda.Primitive using (Level; lzero; lsuc; _⊔_)
+open import Base public
 
 id : forall {l} {A : Set l} -> A -> A
 id x = x
@@ -9,28 +9,6 @@ infixr 5 _o_
 _o_ : forall {a b c} {A : Set a} {B : A -> Set b} {C : forall {a} -> B a -> Set c}
       (f : forall {a} (b : B a) -> C b) (g : forall a -> B a) a -> C (g a)
 (f o g) x = f (g x)
-
-data _==_ {l : Level}{A : Set l}(a : A) : A -> Set l where
-  refl : a == a
-infix 0 _==_
-
-{-# BUILTIN EQUALITY _==_ #-}
-
-cong : forall {a b} {A : Set a} {B : Set b} {x y : A} (f : A -> B) -> x == y -> f x == f y
-cong f refl = refl
-
-cong2 : forall {a b c} {A : Set a} {B : Set b} {C : Set c}
-        {a a' b b'} (f : A -> B -> C) -> a == a' -> b == b' -> f a b == f a' b'
-cong2 f refl refl = refl
-
-sym : forall {a} {A : Set a} {x y : A} -> x == y -> y == x
-sym refl = refl
-
-trans : forall {a} {A : Set a} {x y z : A} -> x == y -> y == z -> x == z
-trans refl q = q
-
-subst : forall {a p} {A : Set a} (P : A -> Set p) {x y : A} -> x == y -> P x -> P y
-subst P refl px = px
 
 data Zero : Set where
 
@@ -176,30 +154,6 @@ succ m <=? succ n = mapDec s<=s (\ { (s<=s le) -> le }) (m <=? n)
 _<?_ : forall m n -> Dec (m < n)
 m <? n = succ m <=? n
 
-record Sg {a b} (A : Set a) (B : A -> Set b) : Set (a ⊔ b) where
-  constructor _,_
-  field
-    fst : A
-    snd : B fst
-open Sg public
-infixr 1 _,_
-
-_*_ : forall {a b} -> Set a -> Set b -> Set (a ⊔ b)
-A * B = Sg A \ _ -> B
-infixr 4 _*_
-
-mapSg : forall {a a' b b'} {A : Set a} {A' : Set a'} {B : A -> Set b} {B' : A' -> Set b'}
-        (fa : A -> A') -> (forall {a} -> B a -> B' (fa a)) -> Sg A B -> Sg A' B'
-mapSg fa fb (a , b) = fa a , fb b
-
-uncurry : forall {a b c} {A : Set a} {B : A -> Set b} {C : (a : A) -> B a -> Set c} ->
-          ((a : A) (b : B a) -> C a b) -> (ab : Sg A B) -> C (fst ab) (snd ab)
-uncurry f (a , b) = f a b
-
-map* : forall {a a' b b'} {A : Set a} {A' : Set a'} {B : Set b} {B' : Set b'} ->
-       (A -> A') -> (B -> B') -> A * B -> A' * B'
-map* fa fb = mapSg fa fb
-
 _*?_ : forall {a b A B} -> Dec {a} A -> Dec {b} B -> Dec (A * B)
 _*?_ (yes a) (yes b) = yes (a , b)
 _*?_ (yes a) (no nb) = no (\ { (_ , b) -> nb b })
@@ -238,6 +192,10 @@ fold n c (x :: l) = c x (fold n c l)
 
 length : forall {x X} -> List {x} X -> Nat
 length = fold zero \ _ -> succ
+
+mapList : forall {x y X Y} -> (X -> Y) -> List {x} X -> List {y} Y
+mapList f nil = nil
+mapList f (x :: xs) = f x :: mapList f xs
 
 infix 5 _!!_
 _!!_ : forall {x X} (xs : List {x} X) -> Fin (length xs) -> X
@@ -318,12 +276,11 @@ zip f (a :: as) nil = nil
 zip f (a :: as) (b :: bs) = f a b :: zip f as bs
 
 --------------------------------------------------------------------------------
+infixr 30 _-o_
 data LTy : Set where
   KEY           : LTy
   LIST          : LTy -> LTy
   _-o_ _<**>_ _&_  : LTy -> LTy -> LTy
-
-infixr 5 _-o_
 
 data _elem_ {x} {X : Set x} (x : X) : List X -> Set where
   here : forall {l} -> x elem (x :: l)
@@ -422,6 +379,12 @@ mapAll : forall {x p q} {X : Set x} {P : X -> Set p} {Q : X -> Set q} {l : List 
 mapAll f nil = nil
 mapAll f (p :: ps) = f p :: mapAll f ps
 
+mapAllD : forall {x y p q} {X : Set x} {Y : Set y} {P : X -> Set p} {Q : Y -> Set q}
+          {l : List X} (f : X -> Y) -> (forall {x} -> P x -> Q (f x)) ->
+          All P l -> All Q (mapList f l)
+mapAllD f g nil = nil
+mapAllD f g (p :: ps) = g p :: mapAllD f g ps
+
 zipAll : forall {x p q r} {X : Set x} {P : X -> Set p} {Q : X -> Set q} {R : X -> Set r}
                 {l : List X} ->
          (forall {x} -> P x -> Q x -> R x) ->
@@ -485,18 +448,6 @@ zipAll-zip f (p :: ps) (q :: qs) = cong2 _::_ refl (zipAll-zip f ps qs)
 ==All? eq? (p :: ps) (q :: qs) | no np = no (np o fst o ::AllInj)
 
 -- assign a boolean to each element of a list
-{-+}
-Partition : forall {X} -> List X -> Set
-Partition l = (Sg _ \ x -> x elem l) -> Two
-
-emptyPartition : forall {X} {l : List X} -> Partition l
-emptyPartition = \ _ -> ff
-
-singlPartition : forall {X} {x : X} {l} -> x elem l -> Partition l
-singlPartition e1 (_ , e2) = floor (index e1 ==Nat? index e2)
-{+-}
-
-{--}
 Partition : forall {x} {X : Set x} -> List X -> Set x
 Partition = All (\ _ -> Two)
 
@@ -510,7 +461,6 @@ singlPartition (there e) = ff :: singlPartition e
 
 fullPartition : forall {x} {X : Set x} {l : List X} -> Partition l
 fullPartition = mapAll (\ _ -> tt) emptyPartition
-{--}
 
 data Zip {a b r} {A : Set a} {B : Set b} (R : A -> B -> Set r)
          : List A -> List B -> Set (a ⊔ b ⊔ r) where
@@ -521,6 +471,6 @@ List== : forall {x} {X : Set x} {l0 l1 : List X} -> Zip _==_ l0 l1 -> l0 == l1
 List== nil = refl
 List== (eq :: eqs) = cong2 _::_ eq (List== eqs)
 
-==Zip : forall {x} {X : Set x} {l l' : List X} -> l == l' -> Zip _==_ l l
-==Zip {l = nil} eq = nil
-==Zip {l = x :: l} eq = refl :: ==Zip refl
+==Zip : forall {x} {X : Set x} {l l' : List X} -> l == l' -> Zip _==_ l l'
+==Zip {l = nil} refl = nil
+==Zip {l = x :: l} refl = refl :: ==Zip refl
