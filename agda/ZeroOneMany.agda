@@ -186,6 +186,7 @@ _*01ω_ : Op2
   *-mono {.ω#} {x'} {1#} {.1#} ω-bot ≤01ω-refl = ω-bot
   *-mono {.ω#} {x'} {ω#} {.ω#} ω-bot ≤01ω-refl = ω-bot
 
+open Posemiring 01ωPosemiring
 open import Quantified 01ωSetoid 01ωPosemiring
 
 infixr 30 _=>_
@@ -195,9 +196,27 @@ _=>_ = _-[ ω# ]o_
 w-t : forall S T -> nil |- (S -o S -o T) -o S => T
 w-t S T = lam (lam (app (app (var (there here)) (var here)) (var here)))
 
-w-r : forall S T -> nil |-r w-t S T
-w-r S T = lam (lam (app {G0 = ω# :: 1# :: nil} {ω# :: 0# :: nil} (==Zip refl)
-                        (app {G0 = ω# :: 1# :: nil} {ω# :: 0# :: nil} (==Zip refl)
-                             (var (ω-bot :: ≤01ω-refl :: nil))
-                             (var (ω-bot :: ≤01ω-refl :: nil)))
+w-r : forall S T -> nil |-[ tt ] w-t S T
+w-r S T = lam (lam (app {G0 = sg->rho tt :: sg->rho tt :: nil} (==Zip refl)
+                        (app (==Zip refl)
+                             (var (≤01ω-refl :: ≤01ω-refl :: nil))
+                             (var (≤01ω-refl :: ≤01ω-refl :: nil)))
                         (var (ω-bot :: ≤01ω-refl :: nil))))
+
+w-r0 : forall S T -> nil |-[ ff ] w-t S T
+w-r0 S T = lam (lam (app {G0 = sg->rho ff :: sg->rho ff :: nil} (==Zip refl)
+                         (app (==Zip refl)
+                              (var (≤01ω-refl :: ≤01ω-refl :: nil))
+                              (var (≤01ω-refl :: ≤01ω-refl :: nil)))
+                         (var (≤01ω-refl :: ≤01ω-refl :: nil))))
+
+{--}
+w-r' : forall sg S T -> nil |-[ sg ] w-t S T
+w-r' sg S T = lam (lam (app {G0 = sg->rho sg :: sg->rho sg :: nil} {!!}
+                            (app {!!}
+                                 (var (≤01ω-refl :: ≤01ω-refl :: nil))
+                                 (var (≤01ω-refl :: ≤01ω-refl :: nil)))
+                            (var (ω-bot :: ≤01ω-refl :: nil))))
+  --where
+  --lemma1 : forall sg' -> 1# ω#
+{--}

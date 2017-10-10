@@ -99,6 +99,16 @@ G ≤G G' = Zip _≤_ (allTags G) (allTags G')
 ≤G-refl nil = nil
 ≤G-refl (p :: G) = ≤-refl :: ≤G-refl G
 
+≤G-reflexive : forall {x X D} {G G' : QCtx {x} {X} D} -> G ≈G G' -> G ≤G G'
+≤G-reflexive {G = nil} {nil} nil = nil
+≤G-reflexive {G = p :: G} {p' :: G'} (eq :: eqs) = ≤-reflexive eq :: ≤G-reflexive eqs
+
+≤G-trans : forall {x X D} {G0 G1 G2 : QCtx {x} {X} D} ->
+           G0 ≤G G1 -> G1 ≤G G2 -> G0 ≤G G2
+≤G-trans {G0 = nil} {nil} {nil} nil nil = nil
+≤G-trans {G0 = p0 :: G0} {p1 :: G1} {p2 :: G2} (le01 :: le01s) (le12 :: le12s) =
+  ≤-trans le01 le12 :: ≤G-trans le01s le12s
+
 _+G_ : forall {x X D} -> QCtx {x} {X} D -> QCtx D -> QCtx D
 _+G_ = zipAll _+_
 
@@ -126,49 +136,48 @@ e1*G : forall {x X D} (G : QCtx {x} {X} D) -> (e1 *G G) ≈G G
 e1*G nil = nil
 e1*G (p :: G) = fst *-identity p :: e1*G G
 
--- TODO: allow irrelevant typings
--- var : G ≤G varCtx σ e -> G |-[ σ ] var e
-data _|-r_ {D} (G : QCtx D) : forall {T} -> D |- T -> Set (c ⊔ l ⊔ l') where
-  var : forall {T} {e : T elem D} -> G ≤G varCtx e1 e -> G |-r var e
-  lam : forall {S T rho} {t : (S :: D) |- T} -> (rho :: G) |-r t -> G |-r lam {rho = rho} t
+sg->rho : Two -> C
+sg->rho tt = e1
+sg->rho ff = e0
+
+data _|-[_]_ {D} (G : QCtx D) (sg : Two) : forall {T} -> D |- T -> Set (c ⊔ l ⊔ l') where
+  var : forall {T} {e : T elem D} -> G ≤G varCtx (sg->rho sg) e -> G |-[ sg ] var e
+  lam : forall {S T rho} {t : (S :: D) |- T} -> (sg->rho sg * rho :: G) |-[ sg ] t -> G |-[ sg ] lam {rho = rho} t
   app : forall {G0 G1 S T rho} {t0 : D |- (S -[ rho ]o T)} {t1 : D |- S} ->
-        (G0 +G (rho *G G1)) ≈G G -> G0 |-r t0 -> G1 |-r t1 -> G |-r app t0 t1
+        (G0 +G (rho *G G1)) ≈G G -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] app t0 t1
 
-  nil   : forall {T} -> G ≤G emptyQCtx D -> G |-r nil {T = T}
-  cons  : forall {T} -> G ≤G emptyQCtx D -> G |-r cons {T = T}
+  nil   : forall {T} -> G ≤G emptyQCtx D -> G |-[ sg ] nil {T = T}
+  cons  : forall {T} -> G ≤G emptyQCtx D -> G |-[ sg ] cons {T = T}
   foldr : forall {S T} {t0 : D |- T} {t1 : D |- (S -o (LIST S & T) -o T)} ->
-          G ≤G emptyQCtx D -> emptyQCtx D |-r t0 -> emptyQCtx D |-r t1 -> G |-r foldr t0 t1
+          G ≤G emptyQCtx D -> emptyQCtx D |-[ sg ] t0 -> emptyQCtx D |-[ sg ] t1 -> G |-[ sg ] foldr t0 t1
 
-  cmp : forall {T} -> G ≤G emptyQCtx D -> G |-r cmp {T = T}
+  cmp : forall {T} -> G ≤G emptyQCtx D -> G |-[ sg ] cmp {T = T}
 
   tensor : forall {G0 G1 S T} {t0 : D |- S} {t1 : D |- T} ->
-           (G0 +G G1) ≈G G -> G0 |-r t0 -> G1 |-r t1 -> G |-r tensor t0 t1
+           (G0 +G G1) ≈G G -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] tensor t0 t1
   pm     : forall {G0 G1 S T U} {t0 : D |- (S <**> T)} {t1 : (S :: T :: D) |- U} ->
-           (G0 +G G1) ≈G G -> G0 |-r t0 -> (e1 :: e1 :: G1) |-r t1 -> G |-r pm t0 t1
+           (G0 +G G1) ≈G G -> G0 |-[ sg ] t0 -> (sg->rho sg :: sg->rho sg :: G1) |-[ sg ] t1 -> G |-[ sg ] pm t0 t1
 
-  _&_   : forall {S T} {t0 : D |- S} {t1 : D |- T} -> G |-r t0 -> G |-r t1 -> G |-r (t0 & t1)
-  proj1 : forall {S T} {t : D |- (S & T)} -> G |-r t -> G |-r proj1 t
-  proj2 : forall {S T} {t : D |- (S & T)} -> G |-r t -> G |-r proj2 t
-
-  --bang  : forall {D' G' T rho} {t : D' |- T} (Deq : mapList (BANG rho) D' == D) ->
-  --        subst _ Deq (rho *G G') ≈G G -> G' |-r t -> G |-r bang Deq t
+  _&_   : forall {S T} {t0 : D |- S} {t1 : D |- T} -> G |-[ sg ] t0 -> G |-[ sg ] t1 -> G |-[ sg ] (t0 & t1)
+  proj1 : forall {S T} {t : D |- (S & T)} -> G |-[ sg ] t -> G |-[ sg ] proj1 t
+  proj2 : forall {S T} {t : D |- (S & T)} -> G |-[ sg ] t -> G |-[ sg ] proj2 t
 
 id-t : forall T -> nil |- (T -o T)
 id-t T = lam (var here)
 
-id-r : forall T -> nil |-r id-t T
-id-r T = lam (var (≤-refl :: nil))
+id-r : forall sg T -> nil |-[ sg ] id-t T
+id-r sg T = lam (var (≤-reflexive (snd *-identity _) :: nil))
 
 -- strictly linear application is a common special case
-app1 : forall {D G G0 G1 S T} {t0 : D |- (S -[ e1 ]o T)} {t1 : D |- S} ->
-      (G0 +G G1) ≈G G -> G0 |-r t0 -> G1 |-r t1 -> G |-r app t0 t1
+app1 : forall {D G G0 G1 sg S T} {t0 : D |- (S -[ e1 ]o T)} {t1 : D |- S} ->
+      (G0 +G G1) ≈G G -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] app t0 t1
 app1 {G = G} {G0} {G1} eq r0 r1 = app (≈G-trans (≈G-refl G0 +G-cong e1*G G1) eq) r0 r1
 
 -- x : KEY, y : KEY |- [y,x] : LIST KEY
 test-list : (KEY :: KEY :: nil) |- LIST KEY
 test-list = app (app cons (var (there here))) (app (app cons (var here)) nil)
 
-test-list-r : linearQCtx _ |-r test-list
+test-list-r : linearQCtx _ |-[ tt ] test-list
 test-list-r = app1 {G0 = e0 :: e1 :: nil} {e1 :: e0 :: nil}
                    (fst +-identity e1 :: snd +-identity e1 :: nil)
                    (app1 {G0 = e0 :: e0 :: nil} {e0 :: e1 :: nil}
@@ -185,6 +194,52 @@ test-list-r = app1 {G0 = e0 :: e1 :: nil} {e1 :: e0 :: nil}
   where
   ≤G-refl' = \ {G} -> ≤G-refl {X = QTy} {D = KEY :: KEY :: nil} G
   +G-identity' = +G-identity (KEY :: KEY :: nil)
+
+≈G-subst : forall {D T} {G G' : QCtx D} {t : D |- T} {sg} ->
+           G ≈G G' -> G |-[ sg ] t -> G' |-[ sg ] t
+≈G-subst eq (var sub) = var (≤G-trans (≤G-reflexive (≈G-sym eq)) sub)
+≈G-subst eq (lam r) = lam (≈G-subst (refl :: eq) r)
+≈G-subst eq (app eq' r0 r1) =
+  app (≈G-trans eq' eq) (≈G-subst (≈G-refl _) r0) (≈G-subst (≈G-refl _) r1)
+≈G-subst eq (nil sub) = nil (≤G-trans (≤G-reflexive (≈G-sym eq)) sub)
+≈G-subst eq (cons sub) = cons (≤G-trans (≤G-reflexive (≈G-sym eq)) sub)
+≈G-subst eq (foldr sub r0 r1) =
+  foldr (≤G-trans (≤G-reflexive (≈G-sym eq)) sub) r0 r1
+≈G-subst eq (cmp sub) = cmp (≤G-trans (≤G-reflexive (≈G-sym eq)) sub)
+≈G-subst eq (tensor eq' r0 r1) = tensor (≈G-trans eq' eq) r0 r1
+≈G-subst eq (pm eq' r0 r1) = pm (≈G-trans eq' eq) r0 r1
+≈G-subst eq (r0 & r1) = ≈G-subst eq r0 & ≈G-subst eq r1
+≈G-subst eq (proj1 r) = proj1 (≈G-subst eq r)
+≈G-subst eq (proj2 r) = proj2 (≈G-subst eq r)
+
+e0*G : forall {x X D} (G : QCtx {x} {X} D) -> (e0 *G G) ≈G emptyQCtx D
+e0*G nil = nil
+e0*G (p :: G) = fst annihil p :: e0*G G
+
+varCtx-e0 : forall {x X D T} (e : T elem D) -> varCtx e0 e ≈G emptyQCtx {x} {X} D
+varCtx-e0 here = refl :: ≈G-refl _
+varCtx-e0 (there e) = refl :: varCtx-e0 e
+
+contemplate : forall {D T} {G : QCtx D} {t : D |- T} -> G |-[ tt ] t -> (e0 *G G) |-[ ff ] t
+contemplate (var {e = e} sub) = var (≤G-reflexive (≈G-trans (e0*G _) (≈G-sym (varCtx-e0 e))))
+contemplate (lam r) = lam (≈G-subst (refl *-cong fst *-identity _ :: ≈G-refl _) (contemplate r))
+contemplate (app sub r0 r1) =
+  app {!!} (contemplate r0) (≈G-subst (e0*G _) (contemplate r1))
+contemplate (nil sub) = nil (≤G-reflexive (e0*G _))
+contemplate (cons sub) = cons (≤G-reflexive (e0*G _))
+contemplate (foldr sub r0 r1) =
+  foldr (≤G-reflexive (e0*G _))
+        (≈G-subst (e0*G _) (contemplate r0))
+        (≈G-subst (e0*G _) (contemplate r1))
+contemplate (cmp sub) = cmp (≤G-reflexive (e0*G _))
+contemplate (tensor sub r0 r1) =
+  tensor {!!}
+         (≈G-subst (e0*G _) (contemplate r0))
+         (≈G-subst (e0*G _) (contemplate r1))
+contemplate (pm sub r0 r1) = {!!}
+contemplate (r0 & r1) = contemplate r0 & contemplate r1
+contemplate (proj1 r) = proj1 (contemplate r)
+contemplate (proj2 r) = proj2 (contemplate r)
 
 {-+}
 --------------------------------------------------------------------------------
