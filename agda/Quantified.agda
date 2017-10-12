@@ -56,9 +56,9 @@ emptyQCtx : forall {x X} D -> QCtx {x} {X} D
 emptyQCtx nil = nil
 emptyQCtx (x :: D) = e0 :: emptyQCtx D
 
-varCtx : forall {x X D T} -> C -> T elem D -> QCtx {x} {X} D
-varCtx sigma here = sigma :: emptyQCtx _
-varCtx sigma (there e) = e0 :: varCtx sigma e
+varQCtx : forall {x X D T} -> C -> T elem D -> QCtx {x} {X} D
+varQCtx sigma here = sigma :: emptyQCtx _
+varQCtx sigma (there e) = e0 :: varQCtx sigma e
 
 linearQCtx : forall {x X} D -> QCtx {x} {X} D
 linearQCtx = mapAll (\ _ -> e1) o emptyQCtx
@@ -141,7 +141,9 @@ sg->rho tt = e1
 sg->rho ff = e0
 
 data _|-[_]_ {D} (G : QCtx D) (sg : Two) : forall {T} -> D |- T -> Set (c ⊔ l ⊔ l') where
-  var : forall {T} {e : T elem D} -> G ≤G varCtx (sg->rho sg) e -> G |-[ sg ] var e
+  var : forall {T} {e : T elem D} -> G ≤G varQCtx (sg->rho sg) e -> G |-[ sg ] var e
+  -- NOTE: check with Bob about sg * rho
+  -- just rho didn't seem to work for the identity function
   lam : forall {S T rho} {t : (S :: D) |- T} -> (sg->rho sg * rho :: G) |-[ sg ] t -> G |-[ sg ] lam {rho = rho} t
   app : forall {G0 G1 S T rho} {t0 : D |- (S -[ rho ]o T)} {t1 : D |- S} ->
         (G0 +G (rho *G G1)) ≈G G -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] app t0 t1
@@ -216,15 +218,23 @@ e0*G : forall {x X D} (G : QCtx {x} {X} D) -> (e0 *G G) ≈G emptyQCtx D
 e0*G nil = nil
 e0*G (p :: G) = fst annihil p :: e0*G G
 
-varCtx-e0 : forall {x X D T} (e : T elem D) -> varCtx e0 e ≈G emptyQCtx {x} {X} D
-varCtx-e0 here = refl :: ≈G-refl _
-varCtx-e0 (there e) = refl :: varCtx-e0 e
+*Gempty : forall {x X} rho D -> (rho *G emptyQCtx {x} {X} D) ≈G emptyQCtx D
+*Gempty rho nil = nil
+*Gempty rho (T :: D) = snd annihil rho :: *Gempty rho D
 
-contemplate : forall {D T} {G : QCtx D} {t : D |- T} -> G |-[ tt ] t -> (e0 *G G) |-[ ff ] t
-contemplate (var {e = e} sub) = var (≤G-reflexive (≈G-trans (e0*G _) (≈G-sym (varCtx-e0 e))))
+varQCtx-e0 : forall {x X D T} (e : T elem D) -> varQCtx e0 e ≈G emptyQCtx {x} {X} D
+varQCtx-e0 here = refl :: ≈G-refl _
+varQCtx-e0 (there e) = refl :: varQCtx-e0 e
+
+contemplate : forall {D T G} {t : D |- T} -> G |-[ tt ] t -> (e0 *G G) |-[ ff ] t
+contemplate (var {e = e} sub) = var (≤G-reflexive (≈G-trans (e0*G _) (≈G-sym (varQCtx-e0 e))))
 contemplate (lam r) = lam (≈G-subst (refl *-cong fst *-identity _ :: ≈G-refl _) (contemplate r))
-contemplate (app sub r0 r1) =
-  app {!!} (contemplate r0) (≈G-subst (e0*G _) (contemplate r1))
+contemplate {D} (app {rho = rho} sub r0 r1) =
+  app (≈G-trans (e0*G _ +G-cong *Gempty rho D)
+                (≈G-trans (fst (+G-identity D) (emptyQCtx D))
+                          (≈G-sym (e0*G _))))
+      (contemplate r0)
+      (≈G-subst (e0*G _) (contemplate r1))
 contemplate (nil sub) = nil (≤G-reflexive (e0*G _))
 contemplate (cons sub) = cons (≤G-reflexive (e0*G _))
 contemplate (foldr sub r0 r1) =
@@ -233,61 +243,91 @@ contemplate (foldr sub r0 r1) =
         (≈G-subst (e0*G _) (contemplate r1))
 contemplate (cmp sub) = cmp (≤G-reflexive (e0*G _))
 contemplate (tensor sub r0 r1) =
-  tensor {!!}
+  tensor (≈G-trans (fst (+G-identity _) (emptyQCtx _)) (≈G-sym (e0*G _)))
          (≈G-subst (e0*G _) (contemplate r0))
          (≈G-subst (e0*G _) (contemplate r1))
-contemplate (pm sub r0 r1) = {!!}
+contemplate {D} (pm {G0 = G0} {G1} {S} {T} sub r0 r1) =
+  pm (≈G-trans (e0*G _ +G-cong ≈G-sym (e0*G _))
+               (fst (+G-identity D) _))
+     (contemplate r0)
+     (≈G-subst (e0*G {D = S :: T :: D} (e1 :: e1 :: G1)) (contemplate r1))
 contemplate (r0 & r1) = contemplate r0 & contemplate r1
 contemplate (proj1 r) = proj1 (contemplate r)
 contemplate (proj2 r) = proj2 (contemplate r)
 
+GoodSums : Set _
+GoodSums =
+  forall {a b c'} -> c' ≤ (a + b) ->
+  Sg _ \ a' -> Sg _ \ b' -> (a' ≤ a) × (b' ≤ b) × ((a' + b') ≈ c')
+
+GoodProducts : Set _
+GoodProducts =
+  forall {a b c'} -> c' ≤ (a * b) ->
+  Sg _ \ b' -> (b' ≤ b) × ((a * b') ≈ c')
+
+splitSumQCtx : forall {x X D} {G0 G1 G' : QCtx {x} {X} D} ->
+            GoodSums -> G' ≤G (G0 +G G1) ->
+            Sg _ \ G0' -> Sg _ \ G1' -> (G0' ≤G G0) × (G1' ≤G G1) × ((G0' +G G1') ≈G G')
+splitSumQCtx {G0 = nil} {nil} {nil} gs nil = nil , nil , nil , nil , nil
+splitSumQCtx {G0 = p0 :: G0} {p1 :: G1} {p' :: G'} gs (le :: sub) with gs le | splitSumQCtx gs sub
+... | p0' , p1' , le0 , le1 , eq | G0' , G1' , sub0 , sub1 , eqs =
+  p0' :: G0' , p1' :: G1' , le0 :: sub0 , le1 :: sub1 , eq :: eqs
+
+splitProductQCtx : forall {x X D rho} {G0 G' : QCtx {x} {X} D} ->
+                   GoodProducts -> G' ≤G (rho *G G0) ->
+                   Sg _ \ G0' -> (G0' ≤G G0) × ((rho *G G0') ≈G G')
+splitProductQCtx {G0 = nil} {nil} gp nil = nil , nil , nil
+splitProductQCtx {G0 = p0 :: G0} {p' :: G'} gp (le :: sub) with gp le | splitProductQCtx gp sub
+... | p0' , le0 , eq | G0' , sub0 , eqs = p0' :: G0' , le0 :: sub0 , eq :: eqs
+
+weaken : forall {D T G G' sg} {t : D |- T} -> GoodSums -> GoodProducts ->
+         G' ≤G G -> G |-[ sg ] t -> G' |-[ sg ] t
+weaken gs gp sub (var sub') = var (≤G-trans sub sub')
+weaken gs gp sub (lam r) = lam (weaken gs gp (≤-refl :: sub) r)
+weaken gs gp sub (app split r0 r1)
+  with splitSumQCtx gs (≤G-trans sub (≤G-reflexive (≈G-sym split)))
+... | G0' , rhoG1' , sub0 , rhosub1 , eqs with splitProductQCtx gp rhosub1
+... | G1' , sub1 , eqs1 =
+  app {G0 = G0'} {G1'} (≈G-trans (≈G-refl _ +G-cong eqs1) eqs)
+                       (weaken gs gp sub0 r0)
+                       (weaken gs gp sub1 r1)
+weaken gs gp sub (nil emp) = nil (≤G-trans sub emp)
+weaken gs gp sub (cons emp) = cons (≤G-trans sub emp)
+weaken gs gp sub (foldr emp r0 r1) = foldr (≤G-trans sub emp) r0 r1
+weaken gs gp sub (cmp emp) = cmp (≤G-trans sub emp)
+weaken gs gp sub (tensor split r0 r1)
+  with splitSumQCtx gs (≤G-trans sub (≤G-reflexive (≈G-sym split)))
+... | G0' , G1' , sub0 , sub1 , eqs =
+  tensor eqs (weaken gs gp sub0 r0) (weaken gs gp sub1 r1)
+weaken gs gp sub (pm split r0 r1)
+  with splitSumQCtx gs (≤G-trans sub (≤G-reflexive (≈G-sym split)))
+... | G0' , G1' , sub0 , sub1 , eqs =
+  pm eqs (weaken gs gp sub0 r0) (weaken gs gp (≤-refl :: ≤-refl :: sub1) r1)
+weaken gs gp sub (r0 & r1) = weaken gs gp sub r0 & weaken gs gp sub r1
+weaken gs gp sub (proj1 r) = proj1 (weaken gs gp sub r)
+weaken gs gp sub (proj2 r) = proj2 (weaken gs gp sub r)
+
+resourcesPrincipal : forall {D T G G' sg} {t : D |- T} ->
+                     GoodSums -> GoodProducts ->
+                     G |-[ sg ] t -> G' |-[ sg ] t ->
+                     Sg _ \ G'' -> (G ≤G G'') × (G' ≤G G'') × (G'' |-[ sg ] t)
+resourcesPrincipal {sg = sg} gs gp (var {e = e} sub) (var sub') =
+  varQCtx (sg->rho sg) e , sub , sub' , var (≤G-refl _)
+resourcesPrincipal gs gp (lam r) (lam r') with resourcesPrincipal gs gp r r'
+... | (p'' :: G'') , (le :: sub) , (le' :: sub') , r'' =
+  G'' , sub , sub' , lam {!!}
+resourcesPrincipal gs gp (app sub r0 r1) (app sub' r0' r1') = {!!}
+resourcesPrincipal gs gp (nil emp) (nil emp') = emptyQCtx _ , emp , emp' , nil (≤G-refl _)
+resourcesPrincipal gs gp (cons x) (cons x₁) = {!!}
+resourcesPrincipal gs gp (foldr x r r₁) (foldr x₁ r' r'') = {!!}
+resourcesPrincipal gs gp (cmp x) (cmp x₁) = {!!}
+resourcesPrincipal gs gp (tensor sub r0 r1) (tensor sub' r0' r1') = {!gs!}
+resourcesPrincipal gs gp (pm x r r₁) (pm x₁ r' r'') = {!!}
+resourcesPrincipal gs gp (r & r₁) (r' & r'') = {!!}
+resourcesPrincipal gs gp (proj1 r) (proj1 r') = {!!}
+resourcesPrincipal gs gp (proj2 r) (proj2 r') = {!!}
+
 {-+}
---------------------------------------------------------------------------------
--- for any term, there is at most one resource allocation
-
-|-r-partialFunction : forall {D T G G'} {t : D |- T} ->
-                      G |-r t -> G' |-r t -> G == G'
-|-r-partialFunction var var = refl
-|-r-partialFunction (lam r) (lam r') with |-r-partialFunction r r'
-... | refl = refl
-|-r-partialFunction (app r0 r1) (app r0' r1') with |-r-partialFunction r0 r0'
-                                                 | |-r-partialFunction r1 r1'
-... | refl | G\\G0eq = \\-transfer G\\G0eq
-|-r-partialFunction nil nil = refl
-|-r-partialFunction cons cons = refl
-|-r-partialFunction (foldr r0 r1) (foldr r0' r1') = refl
-|-r-partialFunction cmp cmp = refl
-|-r-partialFunction (tensor r0 r1) (tensor r0' r1') with |-r-partialFunction r0 r0'
-                                                       | |-r-partialFunction r1 r1'
-... | refl | G\\G0eq = \\-transfer G\\G0eq
-|-r-partialFunction (pm r0 r1) (pm r0' r1') with |-r-partialFunction r0 r0'
-                                               | |-r-partialFunction r1 r1'
-... | refl | G\\G0eq =
-  snd (::AllInj (snd (::AllInj (\\-transfer {G = tt :: tt :: _}
-                                            {tt :: tt :: _}
-                                            {ff :: ff :: _} G\\G0eq))))
-|-r-partialFunction (r0 & r1) (r0' & r1') rewrite |-r-partialFunction r0 r0'
-                                                | |-r-partialFunction r1 r1' = refl
-|-r-partialFunction (proj1 r) (proj1 r') = |-r-partialFunction r r'
-|-r-partialFunction (proj2 r) (proj2 r') = |-r-partialFunction r r'
-
-or-G=> : forall {x} {X : Set x} {l : List X} (G0 G1 : QCtx l) -> G0 G=> zipAll or G0 G1
-or-G=> nil nil = <>
-or-G=> (g0 :: G0) (g1 :: G1) = ->-or , or-G=> G0 G1
-
-other-half : forall {x} {X : Set x} {l : List X} {G0 G1 : QCtx l} ->
-             zipAll and G0 G1 == emptyQCtx -> zipAll or G0 G1 \\ G0 == G1
-other-half {G0 = nil} {nil} emp = refl
-other-half {G0 = g0 :: G0} {g1 :: G1} emp =
-  let femp , semp = ::AllInj emp in
-  cong2 _::_ (or-xor {x = g0} femp) (other-half semp)
-
-separate-partitions : forall {x} {X : Set x} {l : List X} {G G0 : QCtx l} ->
-                      G0 G=> G -> zipAll and G0 (G \\ G0) == emptyQCtx
-separate-partitions {G = nil} {nil} subres = refl
-separate-partitions {G = g :: G} {g0 :: G0} (impl , subres) =
-  cong2 _::_ (and-xor impl) (separate-partitions subres)
-
 --------------------------------------------------------------------------------
 -- we can decide whether a term is resource-correct
 -- inferTensorLike is for situations where the resources are split into two (app, tensor, pm)
