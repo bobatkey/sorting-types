@@ -372,51 +372,51 @@ module Good (gs : GoodSums) (gp : GoodProducts) where
     with splitProductQCtx gp (≤G-trans sub (≤G-reflexive split))
   ... | G'' , sub' , split' = bang split' (weaken sub' r)
 
-  resourcesPrincipal : forall {D T G G' sg} {t : D |- T} ->
+  joinResources : forall {D T G G' sg} {t : D |- T} ->
                        G |-[ sg ] t -> G' |-[ sg ] t ->
                        Sg _ \ G'' -> (G ≤G G'') × (G' ≤G G'') × (G'' |-[ sg ] t)
-  resourcesPrincipal {sg = sg} (var {e = e} sub) (var sub') =
+  joinResources {sg = sg} (var {e = e} sub) (var sub') =
     varQCtx (sg->rho sg) e , sub , sub' , var (≤G-refl _)
-  resourcesPrincipal (lam r) (lam r') with resourcesPrincipal r r'
+  joinResources (lam r) (lam r') with joinResources r r'
   ... | (p'' :: G'') , (le :: sub) , (le' :: sub') , r'' =
     G'' , sub , sub' , lam (weaken (le :: ≤G-refl G'') r'')
-  resourcesPrincipal (app {rho = rho} split r0 r1) (app split' r0' r1')
-    with resourcesPrincipal r0 r0' | resourcesPrincipal r1 r1'
+  joinResources (app {rho = rho} split r0 r1) (app split' r0' r1')
+    with joinResources r0 r0' | joinResources r1 r1'
   ... | G0 , sub0 , sub0' , r0'' | G1 , sub1 , sub1' , r1'' =
     G0 +G (rho *G G1)
     , ≤G-trans (≤G-reflexive split) (sub0 +G-mono (≤-refl *G-mono sub1))
     , ≤G-trans (≤G-reflexive split') (sub0' +G-mono (≤-refl *G-mono sub1'))
     , app (≈G-refl _) r0'' r1''
-  resourcesPrincipal (nil emp) (nil emp') = emptyQCtx _ , emp , emp' , nil (≤G-refl _)
-  resourcesPrincipal (cons emp) (cons emp') = emptyQCtx _ , emp , emp' , cons (≤G-refl _)
-  resourcesPrincipal (foldr emp r0 r1) (foldr emp' r0' r1') =
+  joinResources (nil emp) (nil emp') = emptyQCtx _ , emp , emp' , nil (≤G-refl _)
+  joinResources (cons emp) (cons emp') = emptyQCtx _ , emp , emp' , cons (≤G-refl _)
+  joinResources (foldr emp r0 r1) (foldr emp' r0' r1') =
     emptyQCtx _ , emp , emp' , foldr (≤G-refl _) r0 r1
-  resourcesPrincipal (cmp emp) (cmp emp') = emptyQCtx _ , emp , emp' , cmp (≤G-refl _)
-  resourcesPrincipal (tensor split r0 r1) (tensor split' r0' r1')
-    with resourcesPrincipal r0 r0' | resourcesPrincipal r1 r1'
+  joinResources (cmp emp) (cmp emp') = emptyQCtx _ , emp , emp' , cmp (≤G-refl _)
+  joinResources (tensor split r0 r1) (tensor split' r0' r1')
+    with joinResources r0 r0' | joinResources r1 r1'
   ... | G0 , sub0 , sub0' , r0'' | G1 , sub1 , sub1' , r1'' =
     G0 +G G1
     , ≤G-trans (≤G-reflexive split) (sub0 +G-mono sub1)
     , ≤G-trans (≤G-reflexive split') (sub0' +G-mono sub1')
     , tensor (≈G-refl _) r0'' r1''
-  resourcesPrincipal (pm split r0 r1) (pm split' r0' r1')
-    with resourcesPrincipal r0 r0' | resourcesPrincipal r1 r1'
+  joinResources (pm split r0 r1) (pm split' r0' r1')
+    with joinResources r0 r0' | joinResources r1 r1'
   ... | G0 , sub0 , sub0' , r0''
       | p :: q :: G1 , lep :: leq :: sub1 , lep' :: leq' :: sub1' , r1'' =
     G0 +G G1
     , ≤G-trans (≤G-reflexive split) (sub0 +G-mono sub1)
     , ≤G-trans (≤G-reflexive split') (sub0' +G-mono sub1')
     , pm (≈G-refl _) r0'' (weaken (lep :: leq :: ≤G-refl _) r1'')
-  resourcesPrincipal {G = G} {G'} (r0 & r1) (r0' & r1')
-    with resourcesPrincipal r0 r0' | resourcesPrincipal r1 r1'
+  joinResources {G = G} {G'} (r0 & r1) (r0' & r1')
+    with joinResources r0 r0' | joinResources r1 r1'
   ... | G0 , sub0 , sub0' , r0'' | G1 , sub1 , sub1' , r1'' =
     meetG G0 G1 , greatestG sub0 sub1 , greatestG sub0' sub1'
     , weaken (fst lowerBoundG G0 G1) r0'' & weaken (snd lowerBoundG G0 G1) r1''
-  resourcesPrincipal (proj1 r) (proj1 r') with resourcesPrincipal r r'
+  joinResources (proj1 r) (proj1 r') with joinResources r r'
   ... | G'' , sub , sub' , r'' = G'' , sub , sub' , proj1 r''
-  resourcesPrincipal (proj2 r) (proj2 r') with resourcesPrincipal r r'
+  joinResources (proj2 r) (proj2 r') with joinResources r r'
   ... | G'' , sub , sub' , r'' = G'' , sub , sub' , proj2 r''
-  resourcesPrincipal (bang {rho = rho} split r) (bang split' r') with resourcesPrincipal r r'
+  joinResources (bang {rho = rho} split r) (bang split' r') with joinResources r r'
   ... | G'' , sub , sub' , r'' =
     rho *G G''
     , ≤G-trans (≤G-reflexive split) (≤-refl *G-mono sub)
