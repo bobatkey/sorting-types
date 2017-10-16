@@ -1,10 +1,10 @@
 open import Setoid as Setoid'
 open import Structure
 
-module Quantified {c l l'} (S : Setoid c l) (POS : Posemiring S l') where
+module Quantified {c l l'} (S : Setoid c l) (MSS : MeetSemilatticeSemiring S l') where
 
 open Setoid S
-open Posemiring POS
+open MeetSemilatticeSemiring MSS
 
 open import Common
   hiding (refl; sym; trans; LTy; KEY; LIST; _<**>_; _&_; _-o_)
@@ -22,7 +22,7 @@ data QTy : Set c where
   LIST        : QTy -> QTy
   _<**>_ _&_  : QTy -> QTy -> QTy
   _-[_]o_     : QTy -> C -> QTy -> QTy
-  --BANG             : C -> QTy -> QTy
+  BANG        : C -> QTy -> QTy
 
 _-o_ : QTy -> QTy -> QTy
 _-o_ = _-[ e1 ]o_
@@ -47,7 +47,7 @@ data _|-_ (D : List QTy) : QTy -> Set c where
   proj1   : forall {S T} -> D |- (S & T) -> D |- S
   proj2   : forall {S T} -> D |- (S & T) -> D |- T
 
-  --bang    : forall {D' T rho} -> mapList (BANG rho) D' == D -> D' |- T -> D |- BANG rho T
+  bang    : forall {T} rho -> D |- T -> D |- BANG rho T
 
 QCtx : forall {x X} -> List {x} X -> Set _
 QCtx = All (\ _ -> C)
@@ -129,8 +129,26 @@ _+G-cong_ {D = nil} {nil} {nil} {nil} {nil} nil nil = nil
 _+G-cong_ {D = S :: D} {g0 :: G0} {g0' :: G0'} {g1 :: G1} {g1' :: G1'} (eq0 :: eqs0) (eq1 :: eqs1) =
   eq0 +-cong eq1 :: (eqs0 +G-cong eqs1)
 
+_+G-mono_ : forall {x X D} {G0 G0' G1 G1' : QCtx {x} {X} D} ->
+            G0 ≤G G0' -> G1 ≤G G1' -> (G0 +G G1) ≤G (G0' +G G1')
+_+G-mono_ {D = nil} {nil} {nil} {nil} {nil} nil nil = nil
+_+G-mono_ {D = S :: D} {g0 :: G0} {g0' :: G0'} {g1 :: G1} {g1' :: G1'} (sub0 :: subs0) (sub1 :: subs1) =
+  sub0 +-mono sub1 :: (subs0 +G-mono subs1)
+
 _*G_ : forall {x X D} C -> QCtx {x} {X} D -> QCtx D
 rho *G G = mapAll (rho *_) G
+
+_*G-cong_ : forall {x X D rho rho'} {G G' : QCtx {x} {X} D} ->
+            rho ≈ rho' -> G ≈G G' -> (rho *G G) ≈G (rho' *G G')
+_*G-cong_ {D = nil} {_} {_} {nil} {nil} _ nil = nil
+_*G-cong_ {D = S :: D} {_} {_} {g :: G} {g' :: G'} eq0 (eq1 :: eqs1) =
+  eq0 *-cong eq1 :: (eq0 *G-cong eqs1)
+
+_*G-mono_ : forall {x X D rho rho'} {G G' : QCtx {x} {X} D} ->
+            rho ≤ rho' -> G ≤G G' -> (rho *G G) ≤G (rho' *G G')
+_*G-mono_ {D = nil} {_} {_} {nil} {nil} _ nil = nil
+_*G-mono_ {D = S :: D} {_} {_} {g :: G} {g' :: G'} le0 (le1 :: sub1) =
+  le0 *-mono le1 :: (le0 *G-mono sub1)
 
 e1*G : forall {x X D} (G : QCtx {x} {X} D) -> (e1 *G G) ≈G G
 e1*G nil = nil
@@ -146,7 +164,7 @@ data _|-[_]_ {D} (G : QCtx D) (sg : Two) : forall {T} -> D |- T -> Set (c ⊔ l 
   -- just rho didn't seem to work for the identity function
   lam : forall {S T rho} {t : (S :: D) |- T} -> (sg->rho sg * rho :: G) |-[ sg ] t -> G |-[ sg ] lam {rho = rho} t
   app : forall {G0 G1 S T rho} {t0 : D |- (S -[ rho ]o T)} {t1 : D |- S} ->
-        (G0 +G (rho *G G1)) ≈G G -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] app t0 t1
+        G ≈G (G0 +G (rho *G G1)) -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] app t0 t1
 
   nil   : forall {T} -> G ≤G emptyQCtx D -> G |-[ sg ] nil {T = T}
   cons  : forall {T} -> G ≤G emptyQCtx D -> G |-[ sg ] cons {T = T}
@@ -156,13 +174,16 @@ data _|-[_]_ {D} (G : QCtx D) (sg : Two) : forall {T} -> D |- T -> Set (c ⊔ l 
   cmp : forall {T} -> G ≤G emptyQCtx D -> G |-[ sg ] cmp {T = T}
 
   tensor : forall {G0 G1 S T} {t0 : D |- S} {t1 : D |- T} ->
-           (G0 +G G1) ≈G G -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] tensor t0 t1
+           G ≈G (G0 +G G1) -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] tensor t0 t1
   pm     : forall {G0 G1 S T U} {t0 : D |- (S <**> T)} {t1 : (S :: T :: D) |- U} ->
-           (G0 +G G1) ≈G G -> G0 |-[ sg ] t0 -> (sg->rho sg :: sg->rho sg :: G1) |-[ sg ] t1 -> G |-[ sg ] pm t0 t1
+           G ≈G (G0 +G G1) -> G0 |-[ sg ] t0 -> (sg->rho sg :: sg->rho sg :: G1) |-[ sg ] t1 -> G |-[ sg ] pm t0 t1
 
   _&_   : forall {S T} {t0 : D |- S} {t1 : D |- T} -> G |-[ sg ] t0 -> G |-[ sg ] t1 -> G |-[ sg ] (t0 & t1)
   proj1 : forall {S T} {t : D |- (S & T)} -> G |-[ sg ] t -> G |-[ sg ] proj1 t
   proj2 : forall {S T} {t : D |- (S & T)} -> G |-[ sg ] t -> G |-[ sg ] proj2 t
+
+  bang  : forall {G' T rho} {t : D |- T} ->
+          G ≈G (rho *G G') -> G' |-[ sg ] t -> G |-[ sg ] bang rho t
 
 id-t : forall T -> nil |- (T -o T)
 id-t T = lam (var here)
@@ -172,47 +193,52 @@ id-r sg T = lam (var (≤-reflexive (snd *-identity _) :: nil))
 
 -- strictly linear application is a common special case
 app1 : forall {D G G0 G1 sg S T} {t0 : D |- (S -[ e1 ]o T)} {t1 : D |- S} ->
-      (G0 +G G1) ≈G G -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] app t0 t1
-app1 {G = G} {G0} {G1} eq r0 r1 = app (≈G-trans (≈G-refl G0 +G-cong e1*G G1) eq) r0 r1
+       G ≈G (G0 +G G1) -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] app t0 t1
+app1 {G = G} {G0} {G1} eq r0 r1 = app (≈G-trans eq (≈G-refl G0 +G-cong ≈G-sym (e1*G G1))) r0 r1
+
+app1' : forall {D G G0 G1 sg S T} {t0 : D |- (S -[ e1 ]o T)} {t1 : D |- S} ->
+        (G0 +G G1) ≈G G -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] app t0 t1
+app1' = app1 o ≈G-sym
 
 -- x : KEY, y : KEY |- [y,x] : LIST KEY
 test-list : (KEY :: KEY :: nil) |- LIST KEY
 test-list = app (app cons (var (there here))) (app (app cons (var here)) nil)
 
 test-list-r : linearQCtx _ |-[ tt ] test-list
-test-list-r = app1 {G0 = e0 :: e1 :: nil} {e1 :: e0 :: nil}
-                   (fst +-identity e1 :: snd +-identity e1 :: nil)
-                   (app1 {G0 = e0 :: e0 :: nil} {e0 :: e1 :: nil}
-                         (fst +G-identity' (e0 :: e1 :: nil))
-                         (cons ≤G-refl')
-                         (var ≤G-refl'))
-                   (app1 {G0 = e1 :: e0 :: nil} {e0 :: e0 :: nil}
-                         (snd +G-identity' (e1 :: e0 :: nil))
-                         (app1 {G0 = e0 :: e0 :: nil} {e1 :: e0 :: nil}
-                               (fst +G-identity' (e1 :: e0 :: nil))
-                               (cons ≤G-refl')
-                               (var ≤G-refl'))
-                         (nil ≤G-refl'))
+test-list-r = app1' {G0 = e0 :: e1 :: nil} {e1 :: e0 :: nil}
+                    (fst +-identity e1 :: snd +-identity e1 :: nil)
+                    (app1' {G0 = e0 :: e0 :: nil} {e0 :: e1 :: nil}
+                           (fst +G-identity' (e0 :: e1 :: nil))
+                           (cons ≤G-refl')
+                           (var ≤G-refl'))
+                    (app1' {G0 = e1 :: e0 :: nil} {e0 :: e0 :: nil}
+                           (snd +G-identity' (e1 :: e0 :: nil))
+                           (app1' {G0 = e0 :: e0 :: nil} {e1 :: e0 :: nil}
+                                  (fst +G-identity' (e1 :: e0 :: nil))
+                                  (cons ≤G-refl')
+                                  (var ≤G-refl'))
+                           (nil ≤G-refl'))
   where
   ≤G-refl' = \ {G} -> ≤G-refl {X = QTy} {D = KEY :: KEY :: nil} G
   +G-identity' = +G-identity (KEY :: KEY :: nil)
 
 ≈G-subst : forall {D T} {G G' : QCtx D} {t : D |- T} {sg} ->
-           G ≈G G' -> G |-[ sg ] t -> G' |-[ sg ] t
-≈G-subst eq (var sub) = var (≤G-trans (≤G-reflexive (≈G-sym eq)) sub)
+           G' ≈G G -> G |-[ sg ] t -> G' |-[ sg ] t
+≈G-subst eq (var sub) = var (≤G-trans (≤G-reflexive eq) sub)
 ≈G-subst eq (lam r) = lam (≈G-subst (refl :: eq) r)
-≈G-subst eq (app eq' r0 r1) =
-  app (≈G-trans eq' eq) (≈G-subst (≈G-refl _) r0) (≈G-subst (≈G-refl _) r1)
-≈G-subst eq (nil sub) = nil (≤G-trans (≤G-reflexive (≈G-sym eq)) sub)
-≈G-subst eq (cons sub) = cons (≤G-trans (≤G-reflexive (≈G-sym eq)) sub)
+≈G-subst eq (app split r0 r1) =
+  app (≈G-trans eq split) (≈G-subst (≈G-refl _) r0) (≈G-subst (≈G-refl _) r1)
+≈G-subst eq (nil sub) = nil (≤G-trans (≤G-reflexive eq) sub)
+≈G-subst eq (cons sub) = cons (≤G-trans (≤G-reflexive eq) sub)
 ≈G-subst eq (foldr sub r0 r1) =
-  foldr (≤G-trans (≤G-reflexive (≈G-sym eq)) sub) r0 r1
-≈G-subst eq (cmp sub) = cmp (≤G-trans (≤G-reflexive (≈G-sym eq)) sub)
-≈G-subst eq (tensor eq' r0 r1) = tensor (≈G-trans eq' eq) r0 r1
-≈G-subst eq (pm eq' r0 r1) = pm (≈G-trans eq' eq) r0 r1
+  foldr (≤G-trans (≤G-reflexive eq) sub) r0 r1
+≈G-subst eq (cmp sub) = cmp (≤G-trans (≤G-reflexive eq) sub)
+≈G-subst eq (tensor split r0 r1) = tensor (≈G-trans eq split) r0 r1
+≈G-subst eq (pm split r0 r1) = pm (≈G-trans eq split) r0 r1
 ≈G-subst eq (r0 & r1) = ≈G-subst eq r0 & ≈G-subst eq r1
 ≈G-subst eq (proj1 r) = proj1 (≈G-subst eq r)
 ≈G-subst eq (proj2 r) = proj2 (≈G-subst eq r)
+≈G-subst eq (bang split r) = bang (≈G-trans eq split) (≈G-subst (≈G-refl _) r)
 
 e0*G : forall {x X D} (G : QCtx {x} {X} D) -> (e0 *G G) ≈G emptyQCtx D
 e0*G nil = nil
@@ -222,52 +248,65 @@ e0*G (p :: G) = fst annihil p :: e0*G G
 *Gempty rho nil = nil
 *Gempty rho (T :: D) = snd annihil rho :: *Gempty rho D
 
+*G-assoc : forall {x X D} rho rho' (G : QCtx {x} {X} D) ->
+           ((rho * rho') *G G) ≈G (rho *G (rho' *G G))
+*G-assoc rho rho' nil = nil
+*G-assoc rho rho' (p :: G) = *-assoc rho rho' p :: *G-assoc rho rho' G
+
 varQCtx-e0 : forall {x X D T} (e : T elem D) -> varQCtx e0 e ≈G emptyQCtx {x} {X} D
 varQCtx-e0 here = refl :: ≈G-refl _
 varQCtx-e0 (there e) = refl :: varQCtx-e0 e
 
 contemplate : forall {D T G} {t : D |- T} -> G |-[ tt ] t -> (e0 *G G) |-[ ff ] t
 contemplate (var {e = e} sub) = var (≤G-reflexive (≈G-trans (e0*G _) (≈G-sym (varQCtx-e0 e))))
-contemplate (lam r) = lam (≈G-subst (refl *-cong fst *-identity _ :: ≈G-refl _) (contemplate r))
-contemplate {D} (app {rho = rho} sub r0 r1) =
-  app (≈G-trans (e0*G _ +G-cong *Gempty rho D)
-                (≈G-trans (fst (+G-identity D) (emptyQCtx D))
-                          (≈G-sym (e0*G _))))
+contemplate (lam r) =
+  lam (≈G-subst (refl *-cong sym (fst *-identity _) :: ≈G-refl _) (contemplate r))
+contemplate {D} (app {rho = rho} split r0 r1) =
+  app (≈G-trans (e0*G _)
+                (≈G-trans (≈G-sym (fst (+G-identity D) (emptyQCtx D)))
+                          (≈G-sym (e0*G _) +G-cong ≈G-sym (*Gempty rho D))))
       (contemplate r0)
-      (≈G-subst (e0*G _) (contemplate r1))
-contemplate (nil sub) = nil (≤G-reflexive (e0*G _))
-contemplate (cons sub) = cons (≤G-reflexive (e0*G _))
-contemplate (foldr sub r0 r1) =
+      (≈G-subst (≈G-sym (e0*G _)) (contemplate r1))
+contemplate (nil emp) = nil (≤G-reflexive (e0*G _))
+contemplate (cons emp) = cons (≤G-reflexive (e0*G _))
+contemplate (foldr emp r0 r1) =
   foldr (≤G-reflexive (e0*G _))
-        (≈G-subst (e0*G _) (contemplate r0))
-        (≈G-subst (e0*G _) (contemplate r1))
-contemplate (cmp sub) = cmp (≤G-reflexive (e0*G _))
-contemplate (tensor sub r0 r1) =
-  tensor (≈G-trans (fst (+G-identity _) (emptyQCtx _)) (≈G-sym (e0*G _)))
-         (≈G-subst (e0*G _) (contemplate r0))
-         (≈G-subst (e0*G _) (contemplate r1))
-contemplate {D} (pm {G0 = G0} {G1} {S} {T} sub r0 r1) =
-  pm (≈G-trans (e0*G _ +G-cong ≈G-sym (e0*G _))
-               (fst (+G-identity D) _))
+        (≈G-subst (≈G-sym (e0*G _)) (contemplate r0))
+        (≈G-subst (≈G-sym (e0*G _)) (contemplate r1))
+contemplate (cmp emp) = cmp (≤G-reflexive (e0*G _))
+contemplate (tensor split r0 r1) =
+  tensor (≈G-trans (e0*G _) (≈G-sym (fst (+G-identity _) (emptyQCtx _))))
+         (≈G-subst (≈G-sym (e0*G _)) (contemplate r0))
+         (≈G-subst (≈G-sym (e0*G _)) (contemplate r1))
+contemplate {D} (pm {G0 = G0} {G1} {S} {T} split r0 r1) =
+  pm (≈G-trans (≈G-sym (fst (+G-identity D) _))
+               (≈G-sym (e0*G _) +G-cong e0*G _))
      (contemplate r0)
-     (≈G-subst (e0*G {D = S :: T :: D} (e1 :: e1 :: G1)) (contemplate r1))
+     (≈G-subst (≈G-sym {D = S :: T :: D}
+                       (e0*G {D = S :: T :: D}
+                             (sg->rho tt :: sg->rho tt :: G1)))
+               (contemplate r1))
 contemplate (r0 & r1) = contemplate r0 & contemplate r1
 contemplate (proj1 r) = proj1 (contemplate r)
 contemplate (proj2 r) = proj2 (contemplate r)
+contemplate (bang {rho = rho} split r) =
+  bang (≈G-trans (e0*G _) (≈G-trans (≈G-sym (*Gempty _ _))
+                                    (refl *G-cong ≈G-sym (e0*G _))))
+       (contemplate r)
 
 GoodSums : Set _
 GoodSums =
   forall {a b c'} -> c' ≤ (a + b) ->
-  Sg _ \ a' -> Sg _ \ b' -> (a' ≤ a) × (b' ≤ b) × ((a' + b') ≈ c')
+  Sg _ \ a' -> Sg _ \ b' -> (a' ≤ a) × (b' ≤ b) × (c' ≈ (a' + b'))
 
 GoodProducts : Set _
 GoodProducts =
   forall {a b c'} -> c' ≤ (a * b) ->
-  Sg _ \ b' -> (b' ≤ b) × ((a * b') ≈ c')
+  Sg _ \ b' -> (b' ≤ b) × (c' ≈ (a * b'))
 
 splitSumQCtx : forall {x X D} {G0 G1 G' : QCtx {x} {X} D} ->
             GoodSums -> G' ≤G (G0 +G G1) ->
-            Sg _ \ G0' -> Sg _ \ G1' -> (G0' ≤G G0) × (G1' ≤G G1) × ((G0' +G G1') ≈G G')
+            Sg _ \ G0' -> Sg _ \ G1' -> (G0' ≤G G0) × (G1' ≤G G1) × (G' ≈G (G0' +G G1'))
 splitSumQCtx {G0 = nil} {nil} {nil} gs nil = nil , nil , nil , nil , nil
 splitSumQCtx {G0 = p0 :: G0} {p1 :: G1} {p' :: G'} gs (le :: sub) with gs le | splitSumQCtx gs sub
 ... | p0' , p1' , le0 , le1 , eq | G0' , G1' , sub0 , sub1 , eqs =
@@ -275,57 +314,114 @@ splitSumQCtx {G0 = p0 :: G0} {p1 :: G1} {p' :: G'} gs (le :: sub) with gs le | s
 
 splitProductQCtx : forall {x X D rho} {G0 G' : QCtx {x} {X} D} ->
                    GoodProducts -> G' ≤G (rho *G G0) ->
-                   Sg _ \ G0' -> (G0' ≤G G0) × ((rho *G G0') ≈G G')
+                   Sg _ \ G0' -> (G0' ≤G G0) × (G' ≈G (rho *G G0'))
 splitProductQCtx {G0 = nil} {nil} gp nil = nil , nil , nil
 splitProductQCtx {G0 = p0 :: G0} {p' :: G'} gp (le :: sub) with gp le | splitProductQCtx gp sub
 ... | p0' , le0 , eq | G0' , sub0 , eqs = p0' :: G0' , le0 :: sub0 , eq :: eqs
 
-weaken : forall {D T G G' sg} {t : D |- T} -> GoodSums -> GoodProducts ->
-         G' ≤G G -> G |-[ sg ] t -> G' |-[ sg ] t
-weaken gs gp sub (var sub') = var (≤G-trans sub sub')
-weaken gs gp sub (lam r) = lam (weaken gs gp (≤-refl :: sub) r)
-weaken gs gp sub (app split r0 r1)
-  with splitSumQCtx gs (≤G-trans sub (≤G-reflexive (≈G-sym split)))
-... | G0' , rhoG1' , sub0 , rhosub1 , eqs with splitProductQCtx gp rhosub1
-... | G1' , sub1 , eqs1 =
-  app {G0 = G0'} {G1'} (≈G-trans (≈G-refl _ +G-cong eqs1) eqs)
-                       (weaken gs gp sub0 r0)
-                       (weaken gs gp sub1 r1)
-weaken gs gp sub (nil emp) = nil (≤G-trans sub emp)
-weaken gs gp sub (cons emp) = cons (≤G-trans sub emp)
-weaken gs gp sub (foldr emp r0 r1) = foldr (≤G-trans sub emp) r0 r1
-weaken gs gp sub (cmp emp) = cmp (≤G-trans sub emp)
-weaken gs gp sub (tensor split r0 r1)
-  with splitSumQCtx gs (≤G-trans sub (≤G-reflexive (≈G-sym split)))
-... | G0' , G1' , sub0 , sub1 , eqs =
-  tensor eqs (weaken gs gp sub0 r0) (weaken gs gp sub1 r1)
-weaken gs gp sub (pm split r0 r1)
-  with splitSumQCtx gs (≤G-trans sub (≤G-reflexive (≈G-sym split)))
-... | G0' , G1' , sub0 , sub1 , eqs =
-  pm eqs (weaken gs gp sub0 r0) (weaken gs gp (≤-refl :: ≤-refl :: sub1) r1)
-weaken gs gp sub (r0 & r1) = weaken gs gp sub r0 & weaken gs gp sub r1
-weaken gs gp sub (proj1 r) = proj1 (weaken gs gp sub r)
-weaken gs gp sub (proj2 r) = proj2 (weaken gs gp sub r)
+meetG : forall {x X D} (G G' : QCtx {x} {X} D) -> QCtx D
+meetG = zipAll meet
 
-resourcesPrincipal : forall {D T G G' sg} {t : D |- T} ->
-                     GoodSums -> GoodProducts ->
-                     G |-[ sg ] t -> G' |-[ sg ] t ->
-                     Sg _ \ G'' -> (G ≤G G'') × (G' ≤G G'') × (G'' |-[ sg ] t)
-resourcesPrincipal {sg = sg} gs gp (var {e = e} sub) (var sub') =
-  varQCtx (sg->rho sg) e , sub , sub' , var (≤G-refl _)
-resourcesPrincipal gs gp (lam r) (lam r') with resourcesPrincipal gs gp r r'
-... | (p'' :: G'') , (le :: sub) , (le' :: sub') , r'' =
-  G'' , sub , sub' , lam {!!}
-resourcesPrincipal gs gp (app sub r0 r1) (app sub' r0' r1') = {!!}
-resourcesPrincipal gs gp (nil emp) (nil emp') = emptyQCtx _ , emp , emp' , nil (≤G-refl _)
-resourcesPrincipal gs gp (cons x) (cons x₁) = {!!}
-resourcesPrincipal gs gp (foldr x r r₁) (foldr x₁ r' r'') = {!!}
-resourcesPrincipal gs gp (cmp x) (cmp x₁) = {!!}
-resourcesPrincipal gs gp (tensor sub r0 r1) (tensor sub' r0' r1') = {!gs!}
-resourcesPrincipal gs gp (pm x r r₁) (pm x₁ r' r'') = {!!}
-resourcesPrincipal gs gp (r & r₁) (r' & r'') = {!!}
-resourcesPrincipal gs gp (proj1 r) (proj1 r') = {!!}
-resourcesPrincipal gs gp (proj2 r) (proj2 r') = {!!}
+lowerBoundG : forall {x X D} -> ((G0 G1 : QCtx {x} {X} D) -> meetG G0 G1 ≤G G0)
+                              × ((G0 G1 : QCtx {x} {X} D) -> meetG G0 G1 ≤G G1)
+lowerBoundG = f , s
+  where
+  f : forall {x X D} (G0 G1 : QCtx {x} {X} D) -> meetG G0 G1 ≤G G0
+  f nil nil = nil
+  f (p0 :: G0) (p1 :: G1) = fst lowerBound p0 p1 :: f G0 G1
+
+  s : forall {x X D} (G0 G1 : QCtx {x} {X} D) -> meetG G0 G1 ≤G G1
+  s nil nil = nil
+  s (p0 :: G0) (p1 :: G1) = snd lowerBound p0 p1 :: s G0 G1
+
+greatestG : forall {x X D} {G0 G1 G : QCtx {x} {X} D} ->
+            G ≤G G0 -> G ≤G G1 -> G ≤G meetG G0 G1
+greatestG {G0 = nil} {nil} {nil} nil nil = nil
+greatestG {G0 = _ :: _} {_ :: _} {_ :: _} (le0 :: sub0) (le1 :: sub1) =
+  greatest le0 le1 :: greatestG sub0 sub1
+
+module Good (gs : GoodSums) (gp : GoodProducts) where
+
+  weaken : forall {D T G G' sg} {t : D |- T} ->
+           G' ≤G G -> G |-[ sg ] t -> G' |-[ sg ] t
+  weaken sub (var sub') = var (≤G-trans sub sub')
+  weaken sub (lam r) = lam (weaken (≤-refl :: sub) r)
+  weaken sub (app split r0 r1)
+    with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
+  ... | G0' , rho*G1' , sub0 , rho*sub1 , eqs with splitProductQCtx gp rho*sub1
+  ... | G1' , sub1 , eqs1 =
+    app {G0 = G0'} {G1'} (≈G-trans eqs (≈G-refl _ +G-cong eqs1))
+                         (weaken sub0 r0)
+                         (weaken sub1 r1)
+  weaken sub (nil emp) = nil (≤G-trans sub emp)
+  weaken sub (cons emp) = cons (≤G-trans sub emp)
+  weaken sub (foldr emp r0 r1) = foldr (≤G-trans sub emp) r0 r1
+  weaken sub (cmp emp) = cmp (≤G-trans sub emp)
+  weaken sub (tensor split r0 r1)
+    with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
+  ... | G0' , G1' , sub0 , sub1 , eqs =
+    tensor eqs (weaken sub0 r0) (weaken sub1 r1)
+  weaken sub (pm split r0 r1)
+    with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
+  ... | G0' , G1' , sub0 , sub1 , eqs =
+    pm eqs (weaken sub0 r0) (weaken (≤-refl :: ≤-refl :: sub1) r1)
+  weaken sub (r0 & r1) = weaken sub r0 & weaken sub r1
+  weaken sub (proj1 r) = proj1 (weaken sub r)
+  weaken sub (proj2 r) = proj2 (weaken sub r)
+  weaken sub (bang split r)
+    with splitProductQCtx gp (≤G-trans sub (≤G-reflexive split))
+  ... | G'' , sub' , split' = bang split' (weaken sub' r)
+
+  resourcesPrincipal : forall {D T G G' sg} {t : D |- T} ->
+                       G |-[ sg ] t -> G' |-[ sg ] t ->
+                       Sg _ \ G'' -> (G ≤G G'') × (G' ≤G G'') × (G'' |-[ sg ] t)
+  resourcesPrincipal {sg = sg} (var {e = e} sub) (var sub') =
+    varQCtx (sg->rho sg) e , sub , sub' , var (≤G-refl _)
+  resourcesPrincipal (lam r) (lam r') with resourcesPrincipal r r'
+  ... | (p'' :: G'') , (le :: sub) , (le' :: sub') , r'' =
+    G'' , sub , sub' , lam (weaken (le :: ≤G-refl G'') r'')
+  resourcesPrincipal (app {rho = rho} split r0 r1) (app split' r0' r1')
+    with resourcesPrincipal r0 r0' | resourcesPrincipal r1 r1'
+  ... | G0 , sub0 , sub0' , r0'' | G1 , sub1 , sub1' , r1'' =
+    G0 +G (rho *G G1)
+    , ≤G-trans (≤G-reflexive split) (sub0 +G-mono (≤-refl *G-mono sub1))
+    , ≤G-trans (≤G-reflexive split') (sub0' +G-mono (≤-refl *G-mono sub1'))
+    , app (≈G-refl _) r0'' r1''
+  resourcesPrincipal (nil emp) (nil emp') = emptyQCtx _ , emp , emp' , nil (≤G-refl _)
+  resourcesPrincipal (cons emp) (cons emp') = emptyQCtx _ , emp , emp' , cons (≤G-refl _)
+  resourcesPrincipal (foldr emp r0 r1) (foldr emp' r0' r1') =
+    emptyQCtx _ , emp , emp' , foldr (≤G-refl _) r0 r1
+  resourcesPrincipal (cmp emp) (cmp emp') = emptyQCtx _ , emp , emp' , cmp (≤G-refl _)
+  resourcesPrincipal (tensor split r0 r1) (tensor split' r0' r1')
+    with resourcesPrincipal r0 r0' | resourcesPrincipal r1 r1'
+  ... | G0 , sub0 , sub0' , r0'' | G1 , sub1 , sub1' , r1'' =
+    G0 +G G1
+    , ≤G-trans (≤G-reflexive split) (sub0 +G-mono sub1)
+    , ≤G-trans (≤G-reflexive split') (sub0' +G-mono sub1')
+    , tensor (≈G-refl _) r0'' r1''
+  resourcesPrincipal (pm split r0 r1) (pm split' r0' r1')
+    with resourcesPrincipal r0 r0' | resourcesPrincipal r1 r1'
+  ... | G0 , sub0 , sub0' , r0''
+      | p :: q :: G1 , lep :: leq :: sub1 , lep' :: leq' :: sub1' , r1'' =
+    G0 +G G1
+    , ≤G-trans (≤G-reflexive split) (sub0 +G-mono sub1)
+    , ≤G-trans (≤G-reflexive split') (sub0' +G-mono sub1')
+    , pm (≈G-refl _) r0'' (weaken (lep :: leq :: ≤G-refl _) r1'')
+  resourcesPrincipal {G = G} {G'} (r0 & r1) (r0' & r1')
+    with resourcesPrincipal r0 r0' | resourcesPrincipal r1 r1'
+  ... | G0 , sub0 , sub0' , r0'' | G1 , sub1 , sub1' , r1'' =
+    meetG G0 G1 , greatestG sub0 sub1 , greatestG sub0' sub1'
+    , weaken (fst lowerBoundG G0 G1) r0'' & weaken (snd lowerBoundG G0 G1) r1''
+  resourcesPrincipal (proj1 r) (proj1 r') with resourcesPrincipal r r'
+  ... | G'' , sub , sub' , r'' = G'' , sub , sub' , proj1 r''
+  resourcesPrincipal (proj2 r) (proj2 r') with resourcesPrincipal r r'
+  ... | G'' , sub , sub' , r'' = G'' , sub , sub' , proj2 r''
+  resourcesPrincipal (bang {rho = rho} split r) (bang split' r') with resourcesPrincipal r r'
+  ... | G'' , sub , sub' , r'' =
+    rho *G G''
+    , ≤G-trans (≤G-reflexive split) (≤-refl *G-mono sub)
+    , ≤G-trans (≤G-reflexive split') (≤-refl *G-mono sub')
+    , bang (≈G-refl _) r''
 
 {-+}
 --------------------------------------------------------------------------------

@@ -53,6 +53,20 @@ record Poset l' : Set (c ⊔ l ⊔ lsuc l') where
     isPoset : IsPoset _≤_
   open IsPoset isPoset public
 
+record IsMeetSemilattice {l'} (_≤_ : Rel l') (meet : Op2) : Set (c ⊔ l ⊔ l') where
+  field
+    lowerBound : (forall a b -> meet a b ≤ a) × (forall a b -> meet a b ≤ b)
+    greatest : forall {a b m} -> m ≤ a -> m ≤ b -> m ≤ meet a b
+    isPoset : IsPoset _≤_
+  open IsPoset isPoset public
+
+record MeetSemilattice l' : Set (c ⊔ l ⊔ lsuc l') where
+  field
+    _≤_ : Rel l'
+    meet : Op2
+    isMeetSemilattice : IsMeetSemilattice _≤_ meet
+  open IsMeetSemilattice isMeetSemilattice public
+
 record IsMonoid (e : C) (· : Op2) : Set (c ⊔ l) where
   field
     identity : Identity · e
@@ -134,3 +148,24 @@ record Posemiring l' : Set (c ⊔ l ⊔ lsuc l') where
   semiring = record { isSemiring = isSemiring }
   open Semiring semiring public
     using (+-monoid; +-commutativeMonoid; *-monoid)
+
+record IsMeetSemilatticeSemiring {l'} (≤ : Rel l') (e0 e1 : C) (+ * meet : Op2)
+                                 : Set (c ⊔ l ⊔ l') where
+  field
+    _+-mono_ : Mono ≤ +
+    _*-mono_ : Mono ≤ *
+    isMeetSemilattice : IsMeetSemilattice ≤ meet
+    isSemiring : IsSemiring e0 e1 + *
+  open IsMeetSemilattice isMeetSemilattice public
+  open IsSemiring isSemiring public
+
+record MeetSemilatticeSemiring l' : Set (c ⊔ l ⊔ lsuc l') where
+  field
+    _≤_ : Rel l'
+    e0 e1 : C
+    _+_ _*_ meet : Op2
+    isMeetSemilatticeSemiring : IsMeetSemilatticeSemiring _≤_ e0 e1 _+_ _*_ meet
+  open IsMeetSemilatticeSemiring isMeetSemilatticeSemiring public
+
+  meetSemilattice : MeetSemilattice l'
+  meetSemilattice = record { isMeetSemilattice = isMeetSemilattice }
