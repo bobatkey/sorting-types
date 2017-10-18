@@ -7,8 +7,8 @@ open Setoid S
 open MeetSemilatticeSemiring MSS
 
 open import Common
-  hiding (refl; sym; trans; LTy; KEY; LIST; _<**>_; _&_; _-o_)
-  renaming (_*_ to _×_)
+  hiding (LTy; KEY; LIST; _<**>_; _&_; _-o_)
+  renaming (_*_ to _×_; _*?_ to _×?_; refl to ==-refl; sym to ==-sym; trans to ==-trans)
 open import FunctionProperties
 open Structure S
 
@@ -28,26 +28,26 @@ _-o_ : QTy -> QTy -> QTy
 _-o_ = _-[ e1 ]o_
 
 data _|-_ (D : List QTy) : QTy -> Set c where
-  var     : forall {T}   -> T elem D -> D |- T
-  lam     : forall {S T rho} -> (S :: D) |- T -> D |- (S -[ rho ]o T)
-  app     : forall {S T rho} -> D |- (S -[ rho ]o T) -> D |- S -> D |- T
+  var     : forall {T} (e : T elem D) -> D |- T
+  lam     : forall {S T rho} (t : (S :: D) |- T) -> D |- (S -[ rho ]o T)
+  app     : forall {S T rho} (t0 : D |- (S -[ rho ]o T)) (t1 : D |- S) -> D |- T
 
   nil     : forall {T}   -> D |- LIST T
   cons    : forall {T}   -> D |- (T -o LIST T -o LIST T)
-  foldr   : forall {S T} -> D |- T
-                         -> D |- (S -o (LIST S & T) -o T)
+  foldr   : forall {S T} (t0 : D |- T)
+                         (t1 : D |- (S -o (LIST S & T) -o T))
                          -> D |- (LIST S -o T)
 
   cmp     : forall {T}   -> D |- (KEY -o KEY -o ((KEY -o KEY -o T) & (KEY -o KEY -o T)) -o T)
 
-  tensor  : forall {S T} -> D |- S -> D |- T -> D |- (S <**> T)
-  pm      : forall {S T U} -> D |- (S <**> T) -> (S :: T :: D) |- U -> D |- U
+  tensor  : forall {S T} (t0 : D |- S) (t1 : D |- T) -> D |- (S <**> T)
+  pm      : forall {S T U} (t0 : D |- (S <**> T)) (t1 : (S :: T :: D) |- U) -> D |- U
 
-  _&_     : forall {S T} -> D |- S -> D |- T -> D |- (S & T)
-  proj1   : forall {S T} -> D |- (S & T) -> D |- S
-  proj2   : forall {S T} -> D |- (S & T) -> D |- T
+  _&_     : forall {S T} (t0 : D |- S) (t1 : D |- T) -> D |- (S & T)
+  proj1   : forall {S T} (t : D |- (S & T)) -> D |- S
+  proj2   : forall {S T} (t : D |- (S & T)) -> D |- T
 
-  bang    : forall {T} rho -> D |- T -> D |- BANG rho T
+  bang    : forall {T} rho (t : D |- T) -> D |- BANG rho T
 
 QCtx : forall {x X} -> List {x} X -> Set _
 QCtx = All (\ _ -> C)
@@ -159,31 +159,54 @@ sg->rho tt = e1
 sg->rho ff = e0
 
 data _|-[_]_ {D} (G : QCtx D) (sg : Two) : forall {T} -> D |- T -> Set (c ⊔ l ⊔ l') where
-  var : forall {T} {e : T elem D} -> G ≤G varQCtx (sg->rho sg) e -> G |-[ sg ] var e
+  var : forall {T} {e : T elem D} (sub : G ≤G varQCtx (sg->rho sg) e)
+        ->
+        G |-[ sg ] var e
   -- NOTE: check with Bob about sg * rho
   -- just rho didn't seem to work for the identity function
-  lam : forall {S T rho} {t : (S :: D) |- T} -> (sg->rho sg * rho :: G) |-[ sg ] t -> G |-[ sg ] lam {rho = rho} t
-  app : forall {G0 G1 S T rho} {t0 : D |- (S -[ rho ]o T)} {t1 : D |- S} ->
-        G ≈G (G0 +G (rho *G G1)) -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] app t0 t1
+  lam : forall {S T rho} {t : (S :: D) |- T}
+        (r : (sg->rho sg * rho :: G) |-[ sg ] t)
+        ->
+        G |-[ sg ] lam {rho = rho} t
+  app : forall {G0 G1 S T rho} {t0 : D |- (S -[ rho ]o T)} {t1 : D |- S}
+        (split : G ≈G (G0 +G (rho *G G1)))
+        (r0 : G0 |-[ sg ] t0) (r1 : G1 |-[ sg ] t1)
+        ->
+        G |-[ sg ] app t0 t1
 
-  nil   : forall {T} -> G ≤G emptyQCtx D -> G |-[ sg ] nil {T = T}
-  cons  : forall {T} -> G ≤G emptyQCtx D -> G |-[ sg ] cons {T = T}
-  foldr : forall {S T} {t0 : D |- T} {t1 : D |- (S -o (LIST S & T) -o T)} ->
-          G ≤G emptyQCtx D -> emptyQCtx D |-[ sg ] t0 -> emptyQCtx D |-[ sg ] t1 -> G |-[ sg ] foldr t0 t1
+  nil   : forall {T} (emp : G ≤G emptyQCtx D) -> G |-[ sg ] nil {T = T}
+  cons  : forall {T} (emp : G ≤G emptyQCtx D) -> G |-[ sg ] cons {T = T}
+  foldr : forall {S T} {t0 : D |- T} {t1 : D |- (S -o (LIST S & T) -o T)}
+          (emp : G ≤G emptyQCtx D)
+          (r0 : emptyQCtx D |-[ sg ] t0) (r1 : emptyQCtx D |-[ sg ] t1)
+          ->
+          G |-[ sg ] foldr t0 t1
 
-  cmp : forall {T} -> G ≤G emptyQCtx D -> G |-[ sg ] cmp {T = T}
+  cmp : forall {T} (emp : G ≤G emptyQCtx D)
+        ->
+        G |-[ sg ] cmp {T = T}
 
-  tensor : forall {G0 G1 S T} {t0 : D |- S} {t1 : D |- T} ->
-           G ≈G (G0 +G G1) -> G0 |-[ sg ] t0 -> G1 |-[ sg ] t1 -> G |-[ sg ] tensor t0 t1
+  tensor : forall {G0 G1 S T} {t0 : D |- S} {t1 : D |- T}
+           (split : G ≈G (G0 +G G1)) (r0 : G0 |-[ sg ] t0) (r1 : G1 |-[ sg ] t1)
+           ->
+           G |-[ sg ] tensor t0 t1
   pm     : forall {G0 G1 S T U} {t0 : D |- (S <**> T)} {t1 : (S :: T :: D) |- U} ->
-           G ≈G (G0 +G G1) -> G0 |-[ sg ] t0 -> (sg->rho sg :: sg->rho sg :: G1) |-[ sg ] t1 -> G |-[ sg ] pm t0 t1
+           (split : G ≈G (G0 +G G1))
+           (r0 : G0 |-[ sg ] t0) (r1 : (sg->rho sg :: sg->rho sg :: G1) |-[ sg ] t1)
+           ->
+           G |-[ sg ] pm t0 t1
 
-  _&_   : forall {S T} {t0 : D |- S} {t1 : D |- T} -> G |-[ sg ] t0 -> G |-[ sg ] t1 -> G |-[ sg ] (t0 & t1)
-  proj1 : forall {S T} {t : D |- (S & T)} -> G |-[ sg ] t -> G |-[ sg ] proj1 t
-  proj2 : forall {S T} {t : D |- (S & T)} -> G |-[ sg ] t -> G |-[ sg ] proj2 t
+  _&_   : forall {S T} {t0 : D |- S} {t1 : D |- T}
+          (r0 : G |-[ sg ] t0) (r1 : G |-[ sg ] t1)
+          ->
+          G |-[ sg ] (t0 & t1)
+  proj1 : forall {S T} {t : D |- (S & T)} (r : G |-[ sg ] t) -> G |-[ sg ] proj1 t
+  proj2 : forall {S T} {t : D |- (S & T)} (r : G |-[ sg ] t) -> G |-[ sg ] proj2 t
 
-  bang  : forall {G' T rho} {t : D |- T} ->
-          G ≈G (rho *G G') -> G' |-[ sg ] t -> G |-[ sg ] bang rho t
+  bang  : forall {G' T rho} {t : D |- T}
+          (split : G ≈G (rho *G G')) (r : G' |-[ sg ] t)
+          ->
+          G |-[ sg ] bang rho t
 
 id-t : forall T -> nil |- (T -o T)
 id-t T = lam (var here)
@@ -372,6 +395,65 @@ module Good (gs : GoodSums) (gp : GoodProducts) where
     with splitProductQCtx gp (≤G-trans sub (≤G-reflexive split))
   ... | G'' , sub' , split' = bang split' (weaken sub' r)
 
+  weaken-int : forall {D X T} (m : Mele D) -> D |- T -> insert X m |- T
+  weaken-int m (var e) = var (insertPreservesElem m e)
+  weaken-int m (lam t) = lam (weaken-int (there m) t)
+  weaken-int m (app t0 t1) = app (weaken-int m t0) (weaken-int m t1)
+  weaken-int m nil = nil
+  weaken-int m cons = cons
+  weaken-int m (foldr t0 t1) = foldr (weaken-int m t0) (weaken-int m t1)
+  weaken-int m cmp = cmp
+  weaken-int m (tensor t0 t1) = tensor (weaken-int m t0) (weaken-int m t1)
+  weaken-int m (pm t0 t1) = pm (weaken-int m t0) (weaken-int (there (there m)) t1)
+  weaken-int m (t0 & t1) = weaken-int m t0 & weaken-int m t1
+  weaken-int m (proj1 t) = proj1 (weaken-int m t)
+  weaken-int m (proj2 t) = proj2 (weaken-int m t)
+  weaken-int m (bang rho t) = bang rho (weaken-int m t)
+
+  substitute-int-var : forall {D X T} (e : X elem D) ->
+                   let Dl , Dr = elemSplit e in
+                   T elem D -> Dr |- X -> (Dl ++ Dr) |- T
+  substitute-int-var here here x = x
+  substitute-int-var (there e) here x = var here
+  substitute-int-var here (there e') x = var e'
+  substitute-int-var (there e) (there e') x = weaken-int here (substitute-int-var e e' x)
+
+  substitute-int : forall {D X T} (e : X elem D) ->
+                   let Dl , Dr = elemSplit e in
+                   D |- T -> Dr |- X -> (Dl ++ Dr) |- T
+  substitute-int e (var e') x = substitute-int-var e e' x
+  substitute-int e (lam t) x = lam (substitute-int (there e) t x)
+  substitute-int e (app t0 t1) x = app (substitute-int e t0 x) (substitute-int e t1 x)
+  substitute-int e nil x = nil
+  substitute-int e cons x = cons
+  substitute-int e (foldr t0 t1) x = foldr (substitute-int e t0 x) (substitute-int e t1 x)
+  substitute-int e cmp x = cmp
+  substitute-int e (tensor t0 t1) x = tensor (substitute-int e t0 x) (substitute-int e t1 x)
+  substitute-int e (pm t0 t1) x = pm (substitute-int e t0 x) (substitute-int (there (there e)) t1 x)
+  substitute-int e (t0 & t1) x = substitute-int e t0 x & substitute-int e t1 x
+  substitute-int e (proj1 t) x = proj1 (substitute-int e t x)
+  substitute-int e (proj2 t) x = proj2 (substitute-int e t x)
+  substitute-int e (bang rho t) x = bang rho (substitute-int e t x)
+
+  substitute : forall {D G sg X T} {t : D |- T} (e : X elem D) ->
+               let Dl , Dr = elemSplit e in
+               let Gl , Gr = elemSplitAll e G in
+               forall {Gr'} {x : Dr |- X} -> G |-[ sg ] t -> Gr' |-[ sg ] x ->
+               (Gl ++All (Gr +G (retrieveAll e G *G Gr'))) |-[ sg ] substitute-int e t x
+  substitute e (var sub) rx = {!!}
+  substitute e (lam rt) rx = {!!}
+  substitute e (app split rt0 rt1) rx = {!!}
+  substitute {D} e (nil emp) rx = nil ? --nil (thickenZip (subst (length (fst (elemSplit e)) ≤th_) {!==-sym (allTagsLength (emptyQCtx D))!} (fst (elemSplitThinnings e))) emp)
+  substitute e (cons emp) rx = {!!}
+  substitute e (foldr emp rt0 rt1) rx = {!!}
+  substitute e (cmp emp) rx = {!!}
+  substitute e (tensor split rt0 rt1) rx = tensor {!split!} {!!} {!!}
+  substitute e (pm split rt0 rt1) rx = {!!}
+  substitute e (rt0 & rt1) rx = {!!}
+  substitute e (proj1 rt) rx = {!!}
+  substitute e (proj2 rt) rx = {!!}
+  substitute e (bang split rt) rx = {!!}
+
   joinResources : forall {D T G G' sg} {t : D |- T} ->
                        G |-[ sg ] t -> G' |-[ sg ] t ->
                        Sg _ \ G'' -> (G ≤G G'') × (G' ≤G G'') × (G'' |-[ sg ] t)
@@ -422,6 +504,43 @@ module Good (gs : GoodSums) (gp : GoodProducts) where
     , ≤G-trans (≤G-reflexive split) (≤-refl *G-mono sub)
     , ≤G-trans (≤G-reflexive split') (≤-refl *G-mono sub')
     , bang (≈G-refl _) r''
+
+  bestResources : forall {D T} sg (t : D |- T) ->
+                  Dec (Sg _ \ G -> (G |-[ sg ] t) × forall {G'} -> G' |-[ sg ] t -> G' ≤G G)
+  bestResources sg (var e) =
+    yes (varQCtx (sg->rho sg) e , var (≤G-refl _) , \ { (var sub) → sub })
+  bestResources sg (lam t) = {!!}
+  bestResources sg (app t0 t1) = {!!}
+  bestResources sg nil = yes (emptyQCtx _ , nil (≤G-refl _) , \ { (nil emp) → emp })
+  bestResources sg cons = {!!}
+  bestResources sg (foldr t0 t1) = {!!}
+  bestResources sg cmp = {!!}
+  bestResources sg (tensor t0 t1) =
+    mapDec (\ { ((G0 , r0 , b0) , (G1 , r1 , b1)) -> G0 +G G1 , tensor (≈G-refl _) r0 r1 , \ { (tensor split' r0' r1') -> ≤G-trans (≤G-reflexive split') (b0 r0' +G-mono b1 r1') } })
+           (\ { (G , tensor split r0 r1 , b) -> (_ , r0 , {!!}) , _ , r1 , {!!} })
+           (bestResources sg t0 ×? bestResources sg t1)
+  bestResources sg (pm t0 t1) = {!!}
+  bestResources sg (t0 & t1) with bestResources sg t0 | bestResources sg t1
+  bestResources sg (t0 & t1) | yes p | yes p₁ = {!!}
+  bestResources sg (t0 & t1) | yes p | no np = {!!}
+  bestResources sg (t0 & t1) | no np | b = {!!}
+    {-+}
+    mapDec (\ { ((G0 , r0 , b0) , (G1 , r1 , b1)) ->
+              meetG G0 G1
+              , weaken (fst lowerBoundG G0 G1) r0 & weaken (snd lowerBoundG G0 G1) r1
+              , \ { (r0' & r1') → greatestG (b0 r0') (b1 r1') } })
+           (\ { (G , r0 & r1 , b) -> (G , r0 , b o {!b!}) , (G , r1 , {!!}) })
+           (bestResources sg t0 ×? bestResources sg t1)
+    {+-}
+  bestResources sg (proj1 t) =
+    mapDec (\ { (G , r , b) -> G , proj1 r , \ { (proj1 r') -> b r' } })
+           (\ { (G , proj1 r , b) → G , r , b o proj1 })
+           (bestResources sg t)
+  bestResources sg (proj2 t) =
+    mapDec (\ { (G , r , b) -> G , proj2 r , \ { (proj2 r') -> b r' } })
+           (\ { (G , proj2 r , b) → G , r , b o proj2 })
+           (bestResources sg t)
+  bestResources sg (bang rho t) = {!!}
 
 {-+}
 --------------------------------------------------------------------------------

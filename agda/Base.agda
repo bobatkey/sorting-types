@@ -24,6 +24,12 @@ trans refl q = q
 subst : forall {a p} {A : Set a} (P : A -> Set p) {x y : A} -> x == y -> P x -> P y
 subst P refl px = px
 
+IsProp : forall {a} -> Set a -> Set a
+IsProp A = (x y : A) -> x == y
+
+==IsProp : forall {a A x y} -> IsProp (_==_ {a} {A} x y)
+==IsProp refl refl = refl
+
 record Sg {a b} (A : Set a) (B : A -> Set b) : Set (a ⊔ b) where
   constructor _,_
   field

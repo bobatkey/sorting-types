@@ -296,6 +296,26 @@ nil !!Elem ()
 (x :: xs) !!Elem zero = here
 (x :: xs) !!Elem succ i = there (xs !!Elem i)
 
+elemSplit : forall {a A x} {xs : List {a} A} -> x elem xs -> List A * List A
+elemSplit (here {xs}) = nil , xs
+elemSplit (there {_} {y} e) with elemSplit e
+... | xs , ys = y :: xs , ys
+
+-- god of the gaps
+data Mele {a A} : List {a} A -> Set where
+  here : forall {l} -> Mele l
+  there : forall {x l} -> Mele l -> Mele (x :: l)
+
+insert : forall {a A} {xs : List {a} A} -> A -> Mele xs -> List A
+insert x (here {xs}) = x :: xs
+insert x (there {y} {ys} m) = y :: insert x m
+
+insertPreservesElem : forall {a A x y xs} (m : Mele {a} {A} xs) ->
+                      x elem xs -> x elem insert y m
+insertPreservesElem here e = there e
+insertPreservesElem (there m) here = here
+insertPreservesElem (there m) (there e) = there (insertPreservesElem m e)
+
 Ctx : Set
 Ctx = List LTy
 
@@ -396,6 +416,11 @@ allTags : forall {x y} {X : Set x} {Y : Set y} {l : List X} -> All (\ _ -> Y) l 
 allTags nil = nil
 allTags (y :: ys) = y :: allTags ys
 
+allTagsLength : forall {x y} {X : Set x} {Y : Set y} {xs : List X}
+                (ys : All (\ _ -> Y) xs) -> length (allTags ys) == length xs
+allTagsLength nil = refl
+allTagsLength (y :: ys) = cong succ (allTagsLength ys)
+
 takeDropAll : forall {x p} {X : Set x} {P : X -> Set p} l0 {l1 : List X} ->
               All P (l0 ++ l1) -> All P l0 * All P l1
 takeDropAll nil ps = nil , ps
@@ -462,10 +487,20 @@ singlPartition (there e) = ff :: singlPartition e
 fullPartition : forall {x} {X : Set x} {l : List X} -> Partition l
 fullPartition = mapAll (\ _ -> tt) emptyPartition
 
+elemSplitAll : forall {a p A P x xs} (e : x elem xs) ->
+               All {a} {p} {A} P xs -> uncurry _*_ (map* (All P) (All P) (elemSplit e))
+elemSplitAll here (p :: ps) = nil , ps
+elemSplitAll (there e) (p :: ps) with elemSplitAll e ps
+... | qs , rs = p :: qs , rs
+
+retrieveAll : forall {a p A P x xs} -> x elem xs -> All {a} {p} {A} P xs -> P x
+retrieveAll here (p :: ps) = p
+retrieveAll (there e) (p :: ps) = retrieveAll e ps
+
 data Zip {a b r} {A : Set a} {B : Set b} (R : A -> B -> Set r)
          : List A -> List B -> Set (a ⊔ b ⊔ r) where
   nil : Zip R nil nil
-  _::_ : forall {a b as bs} -> R a b -> Zip R as bs -> Zip R (a :: as) (b :: bs)
+  _::_ : forall {a b as bs} (r : R a b) (rs : Zip R as bs) -> Zip R (a :: as) (b :: bs)
 
 List== : forall {x} {X : Set x} {l0 l1 : List X} -> Zip _==_ l0 l1 -> l0 == l1
 List== nil = refl
@@ -474,3 +509,76 @@ List== (eq :: eqs) = cong2 _::_ eq (List== eqs)
 ==Zip : forall {x} {X : Set x} {l l' : List X} -> l == l' -> Zip _==_ l l'
 ==Zip {l = nil} refl = nil
 ==Zip {l = x :: l} refl = refl :: ==Zip refl
+
+zipLength : forall {a b r A B R xs ys} ->
+            Zip {a} {b} {r} {A} {B} R xs ys -> length xs == length ys
+zipLength nil = refl
+zipLength (r :: rs) = cong succ (zipLength rs)
+
+infix 4 _≤th_
+-- thinnings
+data _≤th_ : Nat -> Nat -> Set where
+  oz : zero ≤th zero
+  os : forall {m n} -> m ≤th n -> succ m ≤th succ n
+  o' : forall {m n} -> m ≤th n -> m ≤th succ n
+
+≤th-refl : forall m -> m ≤th m
+≤th-refl zero = oz
+≤th-refl (succ m) = os (≤th-refl m)
+
+z≤th : forall n -> zero ≤th n
+z≤th zero = oz
+z≤th (succ x) = o' (z≤th x)
+
+data Vec {a} (A : Set a) : Nat -> Set a where
+  nil : Vec A zero
+  _::_ : forall {n} (x : A) (xs : Vec A n) -> Vec A (succ n)
+
+thickenVec : forall {a A m n} -> m ≤th n -> Vec {a} A n -> Vec A m
+thickenVec oz nil = nil
+thickenVec (os th) (x :: xs) = x :: thickenVec th xs
+thickenVec (o' th) (x :: xs) = thickenVec th xs
+
+LengthedList : forall {a} -> Set a -> Nat -> Set a
+LengthedList A n = Sg (List A) \ xs -> length xs == n
+
+Vec->LengthedList : forall {a A n} -> Vec {a} A n -> LengthedList A n
+Vec->LengthedList nil = nil , refl
+Vec->LengthedList (x :: xs) with Vec->LengthedList xs
+... | ys , eq = x :: ys , cong succ eq
+
+LengthedList->Vec : forall {a A n} -> LengthedList {a} A n -> Vec A n
+LengthedList->Vec (nil , refl) = nil
+LengthedList->Vec {n = zero} (x :: xs , ())
+LengthedList->Vec {n = succ n} (x :: xs , eq) = x :: LengthedList->Vec (xs , succInj eq)
+
+thickenLengthedList : forall {a A m n} -> m ≤th n -> LengthedList {a} A n -> LengthedList A m
+thickenLengthedList th = Vec->LengthedList o thickenVec th o LengthedList->Vec
+
+thickenList : forall {a A m} (xs : List {a} A) -> m ≤th length xs -> List A
+thickenList xs th = fst (thickenLengthedList th (xs , refl))
+
+elemSplitThinnings : forall {a A x} {xs : List {a} A} (e : x elem xs) ->
+                     let ys , zs = elemSplit e in
+                     (length ys ≤th length xs) * (length zs ≤th length xs)
+elemSplitThinnings here = z≤th _ , o' (≤th-refl _)
+elemSplitThinnings (there e) with elemSplitThinnings e
+... | yth , zth = os yth , o' zth
+
+thickenAll : forall {a p A P m xs} (th : m ≤th length xs) ->
+             All {a} {p} {A} P xs -> All P (thickenList xs th)
+thickenAll oz nil = nil
+thickenAll (os th) (p :: ps) = p :: thickenAll th ps
+thickenAll (o' th) (p :: ps) = thickenAll th ps
+
+thickenZip : forall {a b r A B R m xs ys} (th : m ≤th length ys)
+             (rs : Zip {a} {b} {r} {A} {B} R xs ys) ->
+             Zip R (fst (thickenLengthedList th (xs , zipLength rs)))
+                   (thickenList ys th)
+thickenZip oz nil = nil
+thickenZip (os th) (r :: rs)
+  rewrite ==IsProp (succInj (cong succ (zipLength rs))) (zipLength rs) =
+  r :: thickenZip th rs
+thickenZip (o' th) (r :: rs)
+  rewrite ==IsProp (succInj (cong succ (zipLength rs))) (zipLength rs) =
+  thickenZip th rs
