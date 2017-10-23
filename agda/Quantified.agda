@@ -435,6 +435,7 @@ module Good (gs : GoodSums) (gp : GoodProducts) where
   substitute-int e (proj2 t) x = proj2 (substitute-int e t x)
   substitute-int e (bang rho t) x = bang rho (substitute-int e t x)
 
+  {-+}
   substitute : forall {D G sg X T} {t : D |- T} (e : X elem D) ->
                let Dl , Dr = elemSplit e in
                let Gl , Gr = elemSplitAll e G in
@@ -443,7 +444,7 @@ module Good (gs : GoodSums) (gp : GoodProducts) where
   substitute e (var sub) rx = {!!}
   substitute e (lam rt) rx = {!!}
   substitute e (app split rt0 rt1) rx = {!!}
-  substitute {D} e (nil emp) rx = nil ? --nil (thickenZip (subst (length (fst (elemSplit e)) ≤th_) {!==-sym (allTagsLength (emptyQCtx D))!} (fst (elemSplitThinnings e))) emp)
+  substitute {D} e (nil emp) rx = nil {!thickenZip ? emp!} --nil (thickenZip (subst (length (fst (elemSplit e)) ≤th_) {!==-sym (allTagsLength (emptyQCtx D))!} (fst (elemSplitThinnings e))) emp)
   substitute e (cons emp) rx = {!!}
   substitute e (foldr emp rt0 rt1) rx = {!!}
   substitute e (cmp emp) rx = {!!}
@@ -453,6 +454,7 @@ module Good (gs : GoodSums) (gp : GoodProducts) where
   substitute e (proj1 rt) rx = {!!}
   substitute e (proj2 rt) rx = {!!}
   substitute e (bang split rt) rx = {!!}
+  {+-}
 
   joinResources : forall {D T G G' sg} {t : D |- T} ->
                        G |-[ sg ] t -> G' |-[ sg ] t ->
@@ -505,42 +507,47 @@ module Good (gs : GoodSums) (gp : GoodProducts) where
     , ≤G-trans (≤G-reflexive split') (≤-refl *G-mono sub')
     , bang (≈G-refl _) r''
 
-  bestResources : forall {D T} sg (t : D |- T) ->
-                  Dec (Sg _ \ G -> (G |-[ sg ] t) × forall {G'} -> G' |-[ sg ] t -> G' ≤G G)
-  bestResources sg (var e) =
-    yes (varQCtx (sg->rho sg) e , var (≤G-refl _) , \ { (var sub) → sub })
-  bestResources sg (lam t) = {!!}
-  bestResources sg (app t0 t1) = {!!}
-  bestResources sg nil = yes (emptyQCtx _ , nil (≤G-refl _) , \ { (nil emp) → emp })
-  bestResources sg cons = {!!}
-  bestResources sg (foldr t0 t1) = {!!}
-  bestResources sg cmp = {!!}
-  bestResources sg (tensor t0 t1) =
-    mapDec (\ { ((G0 , r0 , b0) , (G1 , r1 , b1)) -> G0 +G G1 , tensor (≈G-refl _) r0 r1 , \ { (tensor split' r0' r1') -> ≤G-trans (≤G-reflexive split') (b0 r0' +G-mono b1 r1') } })
-           (\ { (G , tensor split r0 r1 , b) -> (_ , r0 , {!!}) , _ , r1 , {!!} })
-           (bestResources sg t0 ×? bestResources sg t1)
-  bestResources sg (pm t0 t1) = {!!}
-  bestResources sg (t0 & t1) with bestResources sg t0 | bestResources sg t1
-  bestResources sg (t0 & t1) | yes p | yes p₁ = {!!}
-  bestResources sg (t0 & t1) | yes p | no np = {!!}
-  bestResources sg (t0 & t1) | no np | b = {!!}
-    {-+}
-    mapDec (\ { ((G0 , r0 , b0) , (G1 , r1 , b1)) ->
+  {-+}
+  anyResources : forall {D T} sg (t : D |- T) ->
+                 Dec (Sg _ \ G -> (G |-[ sg ] t))
+  anyResources sg (var e) = yes (varQCtx (sg->rho sg) e , var (≤G-refl _))
+  anyResources sg (lam {rho = rho} t) with anyResources sg t
+  ... | yes (rho' :: G , r) = {!!}
+  ... | no np = no (np o \ { (G , lam r) -> _ :: G , r })
+    --mapDec (\ { (p :: G , r) -> G , _|-[_]_.lam {G = G} {sg = sg} {rho = rho} {t = t} {!!} })
+    --       (\ { (G , lam r) -> _ :: G , r })
+    --       (anyResources sg t)
+  anyResources sg (app t0 t1) = {!!}
+  anyResources sg nil = yes (emptyQCtx _ , nil (≤G-refl _))
+  anyResources sg cons = {!!}
+  anyResources sg (foldr t0 t1) = {!!}
+  anyResources sg cmp = {!!}
+  anyResources sg (tensor t0 t1) =
+    mapDec (\ { ((G0 , r0) , (G1 , r1)) -> G0 +G G1 , tensor (≈G-refl _) r0 r1 })
+           (\ { (G , tensor split r0 r1) -> (_ , r0) , (_ , r1) })
+           (anyResources sg t0 ×? anyResources sg t1)
+  anyResources sg (pm t0 t1) = {!!}
+  anyResources sg (t0 & t1) =
+    mapDec (\ { ((G0 , r0) , (G1 , r1)) ->
               meetG G0 G1
-              , weaken (fst lowerBoundG G0 G1) r0 & weaken (snd lowerBoundG G0 G1) r1
-              , \ { (r0' & r1') → greatestG (b0 r0') (b1 r1') } })
-           (\ { (G , r0 & r1 , b) -> (G , r0 , b o {!b!}) , (G , r1 , {!!}) })
-           (bestResources sg t0 ×? bestResources sg t1)
-    {+-}
-  bestResources sg (proj1 t) =
-    mapDec (\ { (G , r , b) -> G , proj1 r , \ { (proj1 r') -> b r' } })
-           (\ { (G , proj1 r , b) → G , r , b o proj1 })
-           (bestResources sg t)
-  bestResources sg (proj2 t) =
-    mapDec (\ { (G , r , b) -> G , proj2 r , \ { (proj2 r') -> b r' } })
-           (\ { (G , proj2 r , b) → G , r , b o proj2 })
-           (bestResources sg t)
-  bestResources sg (bang rho t) = {!!}
+              , weaken (fst lowerBoundG G0 G1) r0 & weaken (snd lowerBoundG G0 G1) r1 })
+           (\ { (G , r0 & r1) -> (G , r0) , (G , r1) })
+           (anyResources sg t0 ×? anyResources sg t1)
+  anyResources sg (proj1 t) =
+    mapDec (\ { (G , r) -> G , proj1 r })
+           (\ { (G , proj1 r) → G , r })
+           (anyResources sg t)
+  anyResources sg (proj2 t) =
+    mapDec (\ { (G , r) -> G , proj2 r })
+           (\ { (G , proj2 r) → G , r })
+           (anyResources sg t)
+  anyResources sg (bang rho t) = {!!}
+
+  anyResourcesBest : forall {D T} sg (t : D |- T) ->
+                     IfYes (anyResources sg t)
+                           (\ { (G , r) -> forall {G'} -> G' |-[ sg ] t -> G' ≤G G })
+  anyResourcesBest sg t = {!!}
+  {+-}
 
 {-+}
 --------------------------------------------------------------------------------

@@ -10,6 +10,12 @@ _o_ : forall {a b c} {A : Set a} {B : A -> Set b} {C : forall {a} -> B a -> Set 
       (f : forall {a} (b : B a) -> C b) (g : forall a -> B a) a -> C (g a)
 (f o g) x = f (g x)
 
+record Lift {a l} (A : Set a) : Set (a ⊔ l) where
+  constructor lift
+  field
+    lower : A
+open Lift public
+
 data Zero : Set where
 
 Zero-elim : forall {l} {A : Set l} -> Zero -> A
@@ -101,6 +107,10 @@ byDec X? {auto} = toWitness auto
 
 DecEq : forall {x} -> Set x -> Set x
 DecEq X = (x y : X) -> Dec (x == y)
+
+IfYes : forall {x l X} -> Dec {x} X -> (X -> Set l) -> Set l
+IfYes (yes p) P = P p
+IfYes (no np) P = Lift One
 
 _==Two?_ : DecEq Two
 tt ==Two? tt = yes refl
@@ -534,6 +544,10 @@ data Vec {a} (A : Set a) : Nat -> Set a where
   nil : Vec A zero
   _::_ : forall {n} (x : A) (xs : Vec A n) -> Vec A (succ n)
 
+1≤th-index : forall {a A m} -> 1 ≤th m -> Vec {a} A m -> A
+1≤th-index (os th) (x :: xs) = x
+1≤th-index (o' th) (x :: xs) = 1≤th-index th xs
+
 thickenVec : forall {a A m n} -> m ≤th n -> Vec {a} A n -> Vec A m
 thickenVec oz nil = nil
 thickenVec (os th) (x :: xs) = x :: thickenVec th xs
@@ -582,3 +596,94 @@ thickenZip (os th) (r :: rs)
 thickenZip (o' th) (r :: rs)
   rewrite ==IsProp (succInj (cong succ (zipLength rs))) (zipLength rs) =
   thickenZip th rs
+
+vmap : forall {a b A B n} -> (A -> B) -> Vec {a} A n -> Vec {b} B n
+vmap f nil = nil
+vmap f (x :: xs) = f x :: vmap f xs
+
+vzip : forall {a b c A B C n} -> (A -> B -> C) ->
+       Vec {a} A n -> Vec {b} B n -> Vec {c} C n
+vzip f nil ys = nil
+vzip f (x :: xs) (y :: ys) = f x y :: vzip f xs ys
+
+data VZip {a b r} {A : Set a} {B : Set b} (R : A -> B -> Set r)
+            : forall {n} -> Vec A n -> Vec B n -> Set (a ⊔ b ⊔ r) where
+  nil : VZip R nil nil
+  _::_ : forall {a b n as bs} (r : R a b) (rs : VZip R {n} as bs)
+         -> VZip R (a :: as) (b :: bs)
+
+module RelProp where
+  data RelProp (n : Nat) : Set where
+    impl : RelProp (succ n) -> RelProp n
+    expl : RelProp (succ n) -> RelProp n
+    hyp  : (x y : 1 ≤th n) -> RelProp n -> RelProp n
+    conc : (x y : 1 ≤th n) -> RelProp n
+
+  ⟦_⟧RPT : forall {a} -> Nat -> Set a -> (r : Level) -> Set (lsuc (a ⊔ r))
+  ⟦ zero ⟧RPT A r = Set _
+  ⟦ succ n ⟧RPT A r = A -> ⟦ n ⟧RPT A r
+
+  ⟦_⟧RP : forall {a r n} -> RelProp n -> {A : Set a} -> (A -> A -> Set r) -> ⟦ n ⟧RPT A r
+  ⟦_⟧RP {r = r} (impl rp) {A} R = go (⟦ rp ⟧RP R)
+    where
+    go : forall {n} -> (A -> ⟦ n ⟧RPT A r) -> ⟦ n ⟧RPT A r
+    go {zero} f = {z : A} -> f z
+    go {succ n} f = \ z -> go {n} (f z)
+  ⟦_⟧RP {r = r} (expl rp) {A} R = go (⟦ rp ⟧RP R)
+    where
+    go : forall {n} -> (A -> ⟦ n ⟧RPT A r) -> ⟦ n ⟧RPT A r
+    go {zero} f = (z : A) -> f z
+    go {succ n} f = \ z -> go {n} (f z)
+  ⟦_⟧RP {a = a} {r} (hyp x y rp) {A} R = go x y (⟦ rp ⟧RP R)
+    where
+    padBoth : forall {n} -> Set (a ⊔ r) -> ⟦ n ⟧RPT A r -> ⟦ n ⟧RPT A r
+    padBoth {zero} T t = T -> t
+    padBoth {succ n} T t = \ z -> padBoth T (t z)
+
+    go1 : forall {n} -> 1 ≤th n -> (A -> Set (a ⊔ r)) -> ⟦ n ⟧RPT A r -> ⟦ n ⟧RPT A r
+    go1 (os x) P t = \ z -> padBoth (P z) (t z)
+    go1 (o' x) P t = \ z -> go1 x P (t z)
+
+    go : forall {n} -> (x y : 1 ≤th n) -> ⟦ n ⟧RPT A r -> ⟦ n ⟧RPT A r
+    go (os x) (os y) t = \ z -> padBoth (Lift {r} {a} (R z z)) (t z)
+    go (os x) (o' y) t = \ z -> go1 y (\ z' -> Lift {r} {a} (R z z')) (t z)
+    go (o' x) (os y) t = \ z -> go1 x (\ z' -> Lift {r} {a} (R z' z)) (t z)
+    go (o' x) (o' y) t = \ z -> go x y (t z)
+  ⟦_⟧RP {a = a} {r} {n} (conc x y) {A} R = go x y
+    where
+    padBoth : forall {n} -> Set (a ⊔ r) -> ⟦ n ⟧RPT A r
+    padBoth {n = zero} T = T
+    padBoth {n = succ n} T = \ _ -> padBoth T
+
+    go1 : forall {n} -> 1 ≤th n -> (A -> Set (a ⊔ r)) -> ⟦ n ⟧RPT A r
+    go1 (os x) P = \ z -> padBoth (P z)
+    go1 (o' x) P = \ _ -> go1 x P
+
+    go : forall {n} -> (x y : 1 ≤th n) -> ⟦ n ⟧RPT A r
+    go (os x) (os y) = \ z -> padBoth (Lift {r} {a} (R z z))
+    go (os x) (o' y) = \ z -> go1 y (\ z' -> Lift {r} {a} (R z z'))
+    go (o' x) (os y) = \ z -> go1 x (\ z' -> Lift {r} {a} (R z' z))
+    go (o' x) (o' y) = \ _ -> go x y
+
+  reflSyntax : RelProp 0
+  reflSyntax = expl (conc (os oz) (os oz))
+
+  symSyntax : RelProp 0
+  symSyntax = impl (impl (hyp (os (o' oz)) (o' (os oz)) (conc (o' (os oz)) (os (o' oz)))))
+
+  transSyntax : RelProp 0
+  transSyntax = impl (impl (impl (hyp (os (o' (o' oz))) (o' (os (o' oz)))
+                                      (hyp (o' (os (o' oz))) (o' (o' (os oz)))
+                                           (conc (os (o' (o' oz))) (o' (o' (os oz))))))))
+
+{-+}
+VZipLift : forall {t a b r} (T : (A : Set a) (B : Set b) (R : A -> B -> Set (a ⊔ b ⊔ r)) -> Set t) ->
+           {A : Set a} {B : Set b} (R : A -> B -> Set (a ⊔ b ⊔ r)) ->
+           T A B R -> forall {n} -> T (Vec A n) (Vec B n) (VZip R)
+VZipLift T R t {zero} = {!!}
+VZipLift T R t {succ n} = {!!}
+{+-}
+-- T : forall A (R : A -> A -> Set) -> Set
+-- T A R = (x : A) -> R x x) A R
+-- refl : (x : C) -> x ≈ x  =  (\ A R -> (x : A) -> R x x) A R
+-- vecrefl : {n} (x : Vec C n) -> VZip _≈_ x x  =  forall {n} -> T (Vec C n) (VZip R)

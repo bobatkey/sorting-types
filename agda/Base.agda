@@ -40,7 +40,7 @@ infixr 1 _,_
 
 _*_ : forall {a b} -> Set a -> Set b -> Set (a ⊔ b)
 A * B = Sg A \ _ -> B
-infixr 4 _*_
+infixr 2 _*_
 
 mapSg : forall {a a' b b'} {A : Set a} {A' : Set a'} {B : A -> Set b} {B' : A' -> Set b'}
         (fa : A -> A') -> (forall {a} -> B a -> B' (fa a)) -> Sg A B -> Sg A' B'
