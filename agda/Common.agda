@@ -112,6 +112,16 @@ IfYes : forall {x l X} -> Dec {x} X -> (X -> Set l) -> Set l
 IfYes (yes p) P = P p
 IfYes (no np) P = Lift One
 
+infixr 4 _>>=[_]_ _<&>[_]_
+_>>=[_]_ : forall {a b} {A : Set a} {B : Set b} ->
+           Dec A -> (B -> A) -> (A -> Dec B) -> Dec B
+yes a >>=[ B->A ] A->B? = A->B? a
+no na >>=[ B->A ] A->B? = no (na o B->A)
+
+_<&>[_]_ : forall {a b} {A : Set a} {B : Set b} ->
+           Dec A -> (B -> A) -> (A -> B) -> Dec B
+A? <&>[ g ] f = mapDec f g A?
+
 _==Two?_ : DecEq Two
 tt ==Two? tt = yes refl
 tt ==Two? ff = no (λ ())
