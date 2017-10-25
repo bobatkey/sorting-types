@@ -24,6 +24,28 @@ Zero-elim ()
 Not : forall {a} -> Set a -> Set a
 Not A = A -> Zero
 
+infixr 1 -,_
+record Sgi {a b} (A : Set a) (B : A -> Set b) : Set (a ⊔ b) where
+  constructor -,_
+  field
+    {fsti} : A
+    sndi : B fsti
+open Sgi
+
+mapSgi : forall {a b b'} {A : Set a} {B : A -> Set b} {B' : A -> Set b'} ->
+         (forall {a} -> B a -> B' a) -> Sgi A B -> Sgi A B'
+mapSgi f (-, b) = -, f b
+
+infixl 4 _<-$>_
+_<-$>_ = mapSgi
+
+uncurryi : forall {a b c} {A : Set a} {B : A -> Set b} {C : (a : A) -> B a -> Set c} ->
+           ({a : A} (b : B a) -> C a b) -> (ab : Sgi A B) -> C (fsti ab) (sndi ab)
+uncurryi f (-, b) = f b
+
+infixl 100 _-$_
+_-$_ = uncurryi
+
 record One : Set where
   constructor <>
 open One public
