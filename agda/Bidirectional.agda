@@ -107,19 +107,20 @@ data Dir : Set where
 data Term (n : Nat) : Dir -> Set c where
   var : 1 ≤th n -> Term n syn
   app : (e : Term n syn) (s : Term n chk) -> Term n syn
+  pm : (U : QTy) (e : Term n syn) (s : Term (succ (succ n)) chk) -> Term n syn
   proj0 proj1 : (e : Term n syn) -> Term n syn
+  case : (U : QTy) (e : Term n syn) (s0 s1 : Term (succ n) chk) -> Term n syn
+  bm : (T : QTy) (e : Term n syn) (s : Term (succ n) chk) -> Term n syn
   the : (T : QTy) (s : Term n chk) -> Term n syn
 
   lam : (s : Term (succ n) chk) -> Term n chk
   ten : (s0 s1 : Term n chk) -> Term n chk
-  pm : (e : Term n syn) (s : Term (succ (succ n)) chk) -> Term n chk
   wth : (s0 s1 : Term n chk) -> Term n chk
   inj0 inj1 : (s : Term n chk) -> Term n chk
-  case : (e : Term n syn) (s0 s1 : Term (succ n) chk) -> Term n chk
   bang : (s : Term n chk) -> Term n chk
   [_] : (e : Term n syn) -> Term n chk
 
-infix 3 _|-_∈_ _|-_∋_ _|-[_]_ _|-[_]_∈ _|-[_]∋_
+infix 3 _|-_∈_ _|-_∋_ _|-[_]_ --_|-[_]_∈ _|-[_]∋_
 
 -- type correctness
 data _|-_∈_ {n} (D : Ctx n) : Term n syn -> QTy -> Set c
@@ -133,6 +134,10 @@ data _|-_∈_ {n} (D : Ctx n) where
         (et : D |- e ∈ S ~> T) (st : D |- S ∋ s)
         ->
         D |- app e s ∈ T
+  pm : forall {e s S T U}
+       (et : D |- e ∈ S <**> T) (st : T :: S :: D |- U ∋ s)
+       ->
+       D |- pm U e s ∈ U
   proj0 : forall {e S T}
           (et : D |- e ∈ S & T)
           ->
@@ -141,6 +146,14 @@ data _|-_∈_ {n} (D : Ctx n) where
           (et : D |- e ∈ S & T)
           ->
           D |- proj1 e ∈ T
+  case : forall {e s0 s1 S T U}
+         (et : D |- e ∈ S || T) (s0t : S :: D |- U ∋ s0) (s1t : T :: D |- U ∋ s1)
+         ->
+         D |- case U e s0 s1 ∈ U
+  bm : forall {e s rho S T}
+       (et : D |- e ∈ BANG rho S) (st : S :: D |- T ∋ s)
+       ->
+       D |- bm T e s ∈ T
   the : forall {S s}
         (st : D |- S ∋ s)
         ->
@@ -155,10 +168,6 @@ data _|-_∋_ {n} (D : Ctx n) where
         (s0t : D |- S0 ∋ s0) (s1t : D |- S1 ∋ s1)
         ->
         D |- S0 <**> S1 ∋ ten s0 s1
-  pm : forall {e s S T U}
-       (et : D |- e ∈ S <**> T) (st : T :: S :: D |- U ∋ s)
-       ->
-       D |- U ∋ pm e s
   wth : forall {s0 s1 S0 S1}
         (s0t : D |- S0 ∋ s0) (s1t : D |- S1 ∋ s1)
         ->
@@ -171,10 +180,6 @@ data _|-_∋_ {n} (D : Ctx n) where
          (st : D |- T ∋ s)
          ->
          D |- S || T ∋ inj1 s
-  case : forall {e s0 s1 S T U}
-         (et : D |- e ∈ S || T) (s0t : S :: D |- U ∋ s0) (s1t : T :: D |- U ∋ s1)
-         ->
-         D |- U ∋ case e s0 s1
   bang : forall {s T rho}
          (st : D |- T ∋ s)
          ->
@@ -199,6 +204,12 @@ data _|-[_]_ {n} (G : QCtx n) (sg : Two) : forall {d} -> Term n d -> Set (l' ⊔
         (er : Ge |-[ sg ] e) (sr : Gs |-[ sg ] s)
         ->
         G |-[ sg ] app e s
+  pm : let sg' = sg->rho sg in
+       forall {Ge Gs U e s}
+       (split : G ≈G Ge +G Gs)
+       (er : Ge |-[ sg ] e) (sr : sg' :: sg' :: Gs |-[ sg ] s)
+       ->
+       G |-[ sg ] pm U e s
   proj0 : forall {e}
           (er : G |-[ sg ] e)
           ->
@@ -207,6 +218,17 @@ data _|-[_]_ {n} (G : QCtx n) (sg : Two) : forall {d} -> Term n d -> Set (l' ⊔
           (er : G |-[ sg ] e)
           ->
           G |-[ sg ] proj1 e
+  case : let sg' = sg->rho sg in
+         forall {Ge Gs U e s0 s1}
+         (split : G ≈G Ge +G Gs)
+         (er : Ge |-[ sg ] e) (s0r : sg' :: Gs |-[ sg ] s0) (s1r : sg' :: Gs |-[ sg ] s1)
+         ->
+         G |-[ sg ] case U e s0 s1
+  bm : forall {Ge Gs T e s rho}
+       (split : G ≈G Ge +G Gs)
+       (er : Ge |-[ sg ] e) (sr : sg->rho sg * rho :: Gs |-[ sg ] s)
+       ->
+       G |-[ sg ] bm T e s
   the : forall {S s}
         (sr : G |-[ sg ] s)
         ->
@@ -221,12 +243,6 @@ data _|-[_]_ {n} (G : QCtx n) (sg : Two) : forall {d} -> Term n d -> Set (l' ⊔
         (s0r : G0 |-[ sg ] s0) (s1r : G1 |-[ sg ] s1)
         ->
         G |-[ sg ] ten s0 s1
-  pm : let sg' = sg->rho sg in
-       forall {Ge Gs e s}
-       (split : G ≈G Ge +G Gs)
-       (er : Ge |-[ sg ] e) (sr : sg' :: sg' :: Gs |-[ sg ] s)
-       ->
-       G |-[ sg ] pm e s
   wth : forall {s0 s1}
         (s0r : G |-[ sg ] s0) (s1r : G |-[ sg ] s1)
         ->
@@ -239,12 +255,6 @@ data _|-[_]_ {n} (G : QCtx n) (sg : Two) : forall {d} -> Term n d -> Set (l' ⊔
          (sr : G |-[ sg ] s)
          ->
          G |-[ sg ] inj1 s
-  case : let sg' = sg->rho sg in
-         forall {Ge Gs e s0 s1}
-         (split : G ≈G Ge +G Gs)
-         (er : Ge |-[ sg ] e) (s0r : sg' :: Gs |-[ sg ] s0) (s1r : sg' :: Gs |-[ sg ] s1)
-         ->
-         G |-[ sg ] case e s0 s1
   bang : forall {Gs rho s}
          (split : G ≈G rho *G Gs)
          (sr : Gs |-[ sg ] s)
@@ -254,76 +264,6 @@ data _|-[_]_ {n} (G : QCtx n) (sg : Two) : forall {d} -> Term n d -> Set (l' ⊔
         (er : G |-[ sg ] e)
         ->
         G |-[ sg ] [ e ]
-
--- resource correctness of typed terms (may not be a good idea)
-data _|-[_]_∈ {n D} (G : Vec C n) (sg : Two)
-              : forall {e S} -> D |- e ∈ S -> Set (l' ⊔ c)
-data _|-[_]∋_ {n D} (G : Vec C n) (sg : Two)
-              : forall {s S} -> D |- S ∋ s -> Set (l' ⊔ c)
-
-data _|-[_]_∈ {n D} (G : Vec C n) (sg : Two) where
-  var : forall {th}
-        (sub : G ≤G varQCtx th (sg->rho sg))
-        ->
-        G |-[ sg ] var {th = th} ∈
-  app : forall {e s S T Ge Gs et st}
-        (split : G ≈G Ge +G Gs)
-        (er : Ge |-[ sg ] et ∈) (sr : Gs |-[ sg ]∋ st)
-        ->
-        G |-[ sg ] app {e = e} {s} {S} {T} et st ∈
-  proj0 : forall {e S T et}
-          (er : G |-[ sg ] et ∈)
-          ->
-          G |-[ sg ] proj0 {e = e} {S} {T} et ∈
-  proj1 : forall {e S T et}
-          (er : G |-[ sg ] et ∈)
-          ->
-          G |-[ sg ] proj1 {e = e} {S} {T} et ∈
-  the : forall {S s st}
-        (sr : G |-[ sg ]∋ st)
-        ->
-        G |-[ sg ] the {S = S} {s} st ∈
-
-data _|-[_]∋_ {n D} (G : Vec C n) (sg : Two) where
-  lam : forall {s S T st}
-        (sr : sg->rho sg :: G |-[ sg ]∋ st)
-        ->
-        G |-[ sg ]∋ lam {s = s} {S} {T} st
-  ten : forall {s0 s1 S T s0t s1t Gs0 Gs1}
-        (split : G ≈G Gs0 +G Gs1)
-        (s0r : Gs0 |-[ sg ]∋ s0t) (s1r : Gs1 |-[ sg ]∋ s1t)
-        ->
-        G |-[ sg ]∋ ten {s0 = s0} {s1} {S} {T} s0t s1t
-  pm : forall {e s S T U et st}
-       (er : G |-[ sg ] et ∈) (sr : sg->rho sg :: sg->rho sg :: G |-[ sg ]∋ st)
-       ->
-       G |-[ sg ]∋ pm {e = e} {s} {S} {T} {U} et st
-  wth : forall {s0 s1 S T s0t s1t}
-        (s0r : G |-[ sg ]∋ s0t) (s1r : G |-[ sg ]∋ s1t)
-        ->
-        G |-[ sg ]∋ wth {s0 = s0} {s1} {S} {T} s0t s1t
-  inj0 : forall {s S T st}
-         (sr : G |-[ sg ]∋ st)
-         ->
-         G |-[ sg ]∋ inj0 {s = s} {S} {T} st
-  inj1 : forall {s S T st}
-         (sr : G |-[ sg ]∋ st)
-         ->
-         G |-[ sg ]∋ inj1 {s = s} {S} {T} st
-  case : forall {e s0 s1 S T U et s0t s1t}
-         (er : G |-[ sg ] et ∈)
-         (s0r : sg->rho sg :: G |-[ sg ]∋ s0t) (s1r : sg->rho sg :: G |-[ sg ]∋ s0t)
-         ->
-         G |-[ sg ]∋ case {e = e} {s0} {s1} {S} {T} {U} et s0t s1t
-  bang : forall {s T rho st Gs}
-         (split : G ≈G rho *G Gs)
-         (sr : Gs |-[ sg ]∋ st)
-         ->
-         G |-[ sg ]∋ bang {s = s} {T} {rho} st
-  [_] : forall {e T et}
-        (er : G |-[ sg ] et ∈)
-        ->
-        G |-[ sg ]∋ [_] {e = e} {T} et
 
 1≤th-indexCong : forall {n} {D D' : Ctx n} th -> D ≈D D' -> 1≤th-index th D == 1≤th-index th D'
 1≤th-indexCong (os th) (r :: eq) = r
@@ -428,9 +368,15 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
   synthUnique var var = refl
   synthUnique (app et st) (app et' st') with synthUnique et et'
   ... | refl = refl
+  synthUnique (pm et st) (pm et' st') with synthUnique et et'
+  ... | refl = refl
   synthUnique (proj0 et) (proj0 et') with synthUnique et et'
   ... | refl = refl
   synthUnique (proj1 et) (proj1 et') with synthUnique et et'
+  ... | refl = refl
+  synthUnique (case et s0t s1t) (case et' s0t' s1t') with synthUnique et et'
+  ... | refl = refl
+  synthUnique (bm et st) (bm et' st') with synthUnique et et'
   ... | refl = refl
   synthUnique (the st) (the st') = refl
 
@@ -450,6 +396,16 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
     inv : (Sg _ \ T' -> D |- app e s ∈ T') -> D |- S0 ∋ s
     inv (T' , app et' st') with synthUnique et et'
     ... | refl = st'
+  synthType D (pm U e s) =
+    synthType D e               >>=[ (\ { (_ , pm et st) -> _ , et }) ] \ { (ST , et) ->
+    Is<**>? ST                  >>=[ (\ { (_ , pm et' st') -> _ , _ , synthUnique et et' }) ]
+                                \ { (S , T , refl) ->
+    checkType (T :: S :: D) U s >>=[ inv et ] \ st ->
+    yes (U , pm et st) } }
+    where
+    inv : forall {S T} -> D |- e ∈ S <**> T -> (Sg _ \ U' -> D |- pm U e s ∈ U') -> T :: S :: D |- U ∋ s
+    inv et (_ , pm et' st') with synthUnique et et'
+    ... | refl = st'
   synthType D (proj0 e) with synthType D e
   ... | no np = no (np o \ { (_ , proj0 et) -> _ , et })
   ... | yes (S , et) with Is&? S
@@ -462,6 +418,28 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
     synthType D e >>=[ (\ { (_ , proj1 et) -> _ , et }) ] \ { (S , et) ->
     Is&? S >>=[ (\ { (_ , proj1 et') -> _ , _ , synthUnique et et' }) ] \ { (S0 , S1 , refl) ->
     yes (S1 , proj1 et) } }
+  synthType D (case U e s0 s1) =
+    synthType D e           >>=[ (\ { (_ , case et _ _) -> _ , et }) ] \ { (ST , et) ->
+    Is||? ST                >>=[ (\ { (_ , case et' _ _) -> _ , _ , synthUnique et et' }) ]
+                            \ { (S , T , refl) ->
+    checkType (S :: D) U s0 >>=[ fst o inv et ] \ s0t ->
+    checkType (T :: D) U s1 >>=[ snd o inv et ] \ s1t ->
+    yes (U , case et s0t s1t)} }
+    where
+    inv : forall {S T} -> D |- e ∈ S || T -> (Sg _ \ U' -> D |- case U e s0 s1 ∈ U') ->
+          S :: D |- U ∋ s0 × T :: D |- U ∋ s1
+    inv et (_ , case et' s0t' s1t') with synthUnique et et'
+    ... | refl = s0t' , s1t'
+  synthType D (bm T e s) =
+    synthType D e          >>=[ (\ { (_ , bm et _) -> _ , et }) ] \ { (S' , et) ->
+    IsBANG? S'             >>=[ (\ { (_ , bm et' _) -> _ , _ , synthUnique et et' }) ]
+                           \ { (rho , S , refl) ->
+    checkType (S :: D) T s >>=[ inv et ] \ st ->
+    yes (T , bm et st) } }
+    where
+    inv : forall {rho S} -> D |- e ∈ BANG rho S -> (Sg _ \ T' -> D |- bm T e s ∈ T') -> S :: D |- T ∋ s
+    inv et (_ , bm et' st') with synthUnique et et'
+    ... | refl = st'
   synthType D (the T s) = mapDec (\ st -> T , the st) (\ { (_ , the st) -> st }) (checkType D T s)
 
   checkType D S (lam s) with Is~>? S
@@ -472,17 +450,17 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
   ... | no np = no (np o \ { (ten s0t s1t) -> _ , _ , refl })
   ... | yes (S , T , refl) =
     mapDec (uncurry ten) (\ { (ten s0t s1t) -> s0t , s1t }) (checkType D S s0 ×? checkType D T s1)
-  checkType D U (pm e s) with synthType D e
-  ... | no np = no (np o \ { (pm et' st') -> _ , et' })
-  ... | yes (ST , et) with Is<**>? ST
-  ...   | no np =
-    no (np o \ { (pm et' st') -> _ , _ , synthUnique et et' })
-  ...   | yes (S , T , refl) =
-    mapDec (pm et) inv (checkType (T :: S :: D) U s)
-    where
-    inv : D |- U ∋ pm e s -> T :: S :: D |- U ∋ s
-    inv (pm et' st') with synthUnique et et'
-    ... | refl = st'
+  --checkType D U (pm e s) with synthType D e
+  --... | no np = no (np o \ { (pm et' st') -> _ , et' })
+  --... | yes (ST , et) with Is<**>? ST
+  --...   | no np =
+  --  no (np o \ { (pm et' st') -> _ , _ , synthUnique et et' })
+  --...   | yes (S , T , refl) =
+  --  mapDec (pm et) inv (checkType (T :: S :: D) U s)
+  --  where
+  --  inv : D |- U ∋ pm e s -> T :: S :: D |- U ∋ s
+  --  inv (pm et' st') with synthUnique et et'
+  --  ... | refl = st'
   checkType D S (wth s0 s1) with Is&? S
   ... | no np = no \ { (wth s0t s1t) -> np (_ , _ , refl) }
   ... | yes (S0 , S1 , refl) =
@@ -497,16 +475,16 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
     Is||? ST >>=[ (\ { (inj1 st) -> _ , _ , refl }) ] \ { (S , T , refl) ->
     checkType D T s >>=[ (\ { (inj1 st) -> st }) ]
     yes o inj1 }
-  checkType D U (case e s0 s1) with synthType D e
-  ... | no np = no (np o \ { (case et s0t s1t) -> _ , et })
-  ... | yes (ST , et) with Is||? ST
-  ...   | no np = no (np o \ { (case et' s0t' s1t') -> _ , _ , synthUnique et et' })
-  ...   | yes (S , T , refl) =
-    mapDec (uncurry (case et)) inv (checkType (S :: D) U s0 ×? checkType (T :: D) U s1)
-    where
-    inv : D |- U ∋ case e s0 s1 -> (S :: D |- U ∋ s0) × (T :: D |- U ∋ s1)
-    inv (case et' s0t' s1t') with synthUnique et et'
-    ... | refl = s0t' , s1t'
+  --checkType D U (case e s0 s1) with synthType D e
+  --... | no np = no (np o \ { (case et s0t s1t) -> _ , et })
+  --... | yes (ST , et) with Is||? ST
+  --...   | no np = no (np o \ { (case et' s0t' s1t') -> _ , _ , synthUnique et et' })
+  --...   | yes (S , T , refl) =
+  --  mapDec (uncurry (case et)) inv (checkType (S :: D) U s0 ×? checkType (T :: D) U s1)
+  --  where
+  --  inv : D |- U ∋ case e s0 s1 -> (S :: D |- U ∋ s0) × (T :: D |- U ∋ s1)
+  --  inv (case et' s0t' s1t') with synthUnique et et'
+  --  ... | refl = s0t' , s1t'
   checkType D S (bang s) with IsBANG? S
   ... | no np = no (np o \ { (bang st) -> _ , _ , refl })
   ... | yes (rho , T , refl) = mapDec bang (\ { (bang st) -> st }) (checkType D T s)
@@ -548,70 +526,48 @@ module GoodStuff (gs : GoodSums) (gp : GoodProducts) (_≤?_ : forall x y -> Dec
     with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
   ... | -, -, sube , subs , split' =
     app split' (weakenRes sube er) (weakenRes subs sr)
+  weakenRes sub (pm split er sr)
+    with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
+  ... | -, -, sube , subs , split' =
+    pm split' (weakenRes sube er) (weakenRes (≤-refl :: ≤-refl :: subs) sr)
   weakenRes sub (proj0 er) = proj0 (weakenRes sub er)
   weakenRes sub (proj1 er) = proj1 (weakenRes sub er)
+  weakenRes sub (case split er s0r s1r)
+    with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
+  ... | -, -, sube , subs , split' =
+    case split' (weakenRes sube er) (weakenRes (≤-refl :: subs) s0r) (weakenRes (≤-refl :: subs) s1r)
+  weakenRes sub (bm split er sr)
+    with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
+  ... | -, -, sube , subs , split' = bm split' (weakenRes sube er) (weakenRes (≤-refl :: subs) sr)
   weakenRes sub (the sr) = the (weakenRes sub sr)
   weakenRes sub (lam sr) = lam (weakenRes (≤-refl :: sub) sr)
   weakenRes sub (ten split s0r s1r)
     with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
   ... | -, -, sub0 , sub1 , split' =
     ten split' (weakenRes sub0 s0r) (weakenRes sub1 s1r)
-  weakenRes sub (pm split er sr)
-    with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
-  ... | -, -, sube , subs , split' =
-    pm split' (weakenRes sube er) (weakenRes (≤-refl :: ≤-refl :: subs) sr)
   weakenRes sub (wth s0r s1r) = wth (weakenRes sub s0r) (weakenRes sub s1r)
   weakenRes sub (inj0 sr) = inj0 (weakenRes sub sr)
   weakenRes sub (inj1 sr) = inj1 (weakenRes sub sr)
-  weakenRes sub (case split er s0r s1r)
-    with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
-  ... | -, -, sube , subs , split' =
-    case split' (weakenRes sube er) (weakenRes (≤-refl :: subs) s0r) (weakenRes (≤-refl :: subs) s1r)
   weakenRes sub (bang split sr)
     with splitProductQCtx gp (≤G-trans sub (≤G-reflexive split))
   ... | -, subs , split' = bang split' (weakenRes subs sr)
   weakenRes sub [ er ] = [ weakenRes sub er ]
 
-  {-+}
-  inferRes : forall {n d} sg (t : Term n d) ->
-             Sgi _ \ G -> G |-[ sg ] t
-  inferRes sg (var th) = -, var (≤G-refl _)
-  inferRes sg (app e s) = {!!}
-  inferRes sg (proj0 e) = {!!}
-  inferRes sg (proj1 e) = {!!}
-  inferRes sg (the S s) = mapSgi the (inferRes sg s)
-  inferRes sg (lam s) = {!!}
-  inferRes sg (ten s0 s1) =
-    let -,_ {G0} s0r = inferRes sg s0 in
-    let -,_ {G1} s1r = inferRes sg s1 in
-    -, ten (≈G-refl (G0 +G G1)) s0r s1r
-  inferRes sg (pm e s) =
-    let -,_ {Ge} er = inferRes sg e in
-    let -,_ {Gs} sr = inferRes sg s in
-    -, ten (≈G-refl (Ge +G Gs)) er sr
-  inferRes sg (wth s0 s1) =
-    -, wth (weakenRes (fst lowerBoundG _ _) -$ (inferRes sg s0))
-           (weakenRes (snd lowerBoundG _ _) -$ (inferRes sg s1))
-  inferRes sg (inj0 s) = {!!}
-  inferRes sg (inj1 s) = {!!}
-  inferRes sg (case e s0 s1) = {!!}
-  inferRes sg (bang s) = {!!}
-  inferRes sg [ e ] = {!!}
-  {+-}
-
   inferRes : forall {n d} sg (t : Term n d) ->
              Dec (Sgi _ \ G -> G |-[ sg ] t)
   inferRes sg (var th) = yes (-, var (≤G-refl _))
   inferRes sg (app e s) = {!!}
+  inferRes sg (pm U e s) = {!!}
   inferRes sg (proj0 e) = {!!}
   inferRes sg (proj1 e) = {!!}
+  inferRes sg (case U e s0 s1) = {!!}
+  inferRes sg (bm T e s) = {!!}
   inferRes sg (the S s) =
     mapDec (\ { (-, sr) -> -, the sr }) (\ { (-, the sr) -> -, sr }) (inferRes sg s)
   inferRes sg (lam s) =
     inferRes sg s >>=[ (\ { (-, lam sr) -> -, sr }) ] \ { (-,_ {p :: G} sr) ->
     mapDec (\ le -> -, lam (weakenRes (le :: ≤G-refl _) sr)) (\ { (-, lam sr') -> {!!}}) (sg->rho sg ≤? p) }
   inferRes sg (ten s0 s1) = {!!}
-  inferRes sg (pm e s) = {!!}
   inferRes sg (wth s0 s1) =
     mapDec (\ { ((-, s0r) , (-, s1r)) -> -, wth (weakenRes (fst lowerBoundG _ _) s0r)
                                                 (weakenRes (snd lowerBoundG _ _) s1r) })
@@ -619,6 +575,5 @@ module GoodStuff (gs : GoodSums) (gp : GoodProducts) (_≤?_ : forall x y -> Dec
            (inferRes sg s0 ×? inferRes sg s1)
   inferRes sg (inj0 s) = {!!}
   inferRes sg (inj1 s) = {!!}
-  inferRes sg (case e s0 s1) = {!!}
   inferRes sg (bang s) = {!!}
   inferRes sg [ e ] = {!!}
