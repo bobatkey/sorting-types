@@ -75,6 +75,13 @@ _=>_ : Two -> Two -> Two
 tt => y = y
 ff => y = tt
 
+if_return_then_else_ : forall {a} (x : Two) (A : Two -> Set a) -> A tt -> A ff -> A x
+if tt return A then t else f = t
+if ff return A then t else f = f
+
+if_then_else_ : forall {a} {A : Set a} -> Two -> A -> A -> A
+if x then t else f = if x return _ then t else f
+
 T : Two -> Set
 T tt = One
 T ff = Zero
@@ -719,3 +726,25 @@ VZipLift T R t {succ n} = {!!}
 -- T A R = (x : A) -> R x x) A R
 -- refl : (x : C) -> x ≈ x  =  (\ A R -> (x : A) -> R x x) A R
 -- vecrefl : {n} (x : Vec C n) -> VZip _≈_ x x  =  forall {n} -> T (Vec C n) (VZip R)
+
+data Maybe {a} (A : Set a) : Set a where
+  just : A -> Maybe A
+  nothing : Maybe A
+
+mapMaybe : forall {a b} {A : Set a} {B : Set b} -> (A -> B) -> Maybe A -> Maybe B
+mapMaybe f (just x) = just (f x)
+mapMaybe f nothing = nothing
+
+infixr 4 _>>=_ _*M_
+_>>=_ : forall {a b} {A : Set a} {B : Set b} -> Maybe A -> (A -> Maybe B) -> Maybe B
+just a >>= amb = amb a
+nothing >>= amb = nothing
+
+Dec->Maybe : forall {a A} -> Dec {a} A -> Maybe A
+Dec->Maybe (yes p) = just p
+Dec->Maybe (no np) = nothing
+
+_*M_ : forall {a b A B} -> Maybe {a} A -> Maybe {b} B -> Maybe (A * B)
+just x *M just y = just (x , y)
+just x *M nothing = nothing
+nothing *M mb = nothing
