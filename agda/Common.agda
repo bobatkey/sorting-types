@@ -748,3 +748,13 @@ _*M_ : forall {a b A B} -> Maybe {a} A -> Maybe {b} B -> Maybe (A * B)
 just x *M just y = just (x , y)
 just x *M nothing = nothing
 nothing *M mb = nothing
+
+IfJust : forall {a p A} -> Maybe {a} A -> (A -> Set p) -> Set p
+IfJust (just x) P = P x
+IfJust nothing P = Lift One
+
+IfJust-mapMaybe : forall {a b p A} {B : Set b}
+                  (P : B -> Set p) (f : A -> B) (ma : Maybe {a} A) ->
+                  IfJust ma (P o f) -> IfJust (mapMaybe f ma) P
+IfJust-mapMaybe P f (just a) x = x
+IfJust-mapMaybe P f nothing x = x

@@ -1,7 +1,7 @@
 open import Setoid as Setoid'
 open import Structure
 
-module Bidirectional {c l'} (C : Set c) (MSS : MeetSemilatticeSemiring (==-Setoid C) l') where
+module Bidirectional {c} {x : Set} {l'} (C : Set c) (X : Set) (MSS : MeetSemilatticeSemiring (==-Setoid C) l') where
 
 open MeetSemilatticeSemiring MSS
 
@@ -22,7 +22,7 @@ Ctx : Nat -> Set c
 Ctx = Vec QTy
 
 QCtx : Nat -> Set c
-QCtx = Vec C
+QCtx = Vec {c} C
 
 _≈D_ : forall {n} (D D' : Ctx n) -> Set c
 _≈D_ = VZip _==_
@@ -100,6 +100,11 @@ greatestG : forall {n} {G0 G1 G : QCtx n} ->
 greatestG {G0 = nil} {nil} {nil} nil nil = nil
 greatestG {G0 = _ :: _} {_ :: _} {_ :: _} (le0 :: sub0) (le1 :: sub1) =
   greatest le0 le1 :: greatestG sub0 sub1
+
+_+G-mono_ : forall {n} {G0 G0' G1 G1' : QCtx n} ->
+            G0 ≤G G0' -> G1 ≤G G1' -> G0 +G G1 ≤G G0' +G G1'
+nil +G-mono nil = nil
+(le0 :: sub0) +G-mono (le1 :: sub1) = le0 +-mono le1 :: sub0 +G-mono sub1
 
 data Dir : Set where
   syn chk : Dir
@@ -272,27 +277,27 @@ data _|-[_]_ {n} (G : QCtx n) (sg : Two) : forall {d} -> Term n d -> Set (l' ⊔
 GoodSums : Set _
 GoodSums =
   forall {a b c'} -> c' ≤ (a + b) ->
-  Sgi _ \ a' -> Sgi _ \ b' -> (a' ≤ a) × (b' ≤ b) × (c' == (a' + b'))
+  Sg _ \ a' -> Sg _ \ b' -> (a' ≤ a) × (b' ≤ b) × (c' == (a' + b'))
 
 GoodProducts : Set _
 GoodProducts =
   forall {a b c'} -> c' ≤ (a * b) ->
-  Sgi _ \ b' -> (b' ≤ b) × (c' == (a * b'))
+  Sg _ \ b' -> (b' ≤ b) × (c' == (a * b'))
 
 splitSumQCtx : forall {n} {G0 G1 G' : QCtx n} ->
                GoodSums -> G' ≤G (G0 +G G1) ->
-               Sgi _ \ G0' -> Sgi _ \ G1' -> (G0' ≤G G0) × (G1' ≤G G1) × (G' ≈G (G0' +G G1'))
-splitSumQCtx {G0 = nil} {nil} {nil} gs nil = -, -, nil , nil , nil
+               Sg _ \ G0' -> Sg _ \ G1' -> (G0' ≤G G0) × (G1' ≤G G1) × (G' ≈G (G0' +G G1'))
+splitSumQCtx {G0 = nil} {nil} {nil} gs nil = _ , _ , nil , nil , nil
 splitSumQCtx {G0 = p0 :: G0} {p1 :: G1} {p' :: G'} gs (le :: sub) with gs le | splitSumQCtx gs sub
-... | -, -, le0 , le1 , eq | -, -, sub0 , sub1 , eqs =
-  -, -, le0 :: sub0 , le1 :: sub1 , eq :: eqs
+... | _ , _ , le0 , le1 , eq | _ , _ , sub0 , sub1 , eqs =
+  _ , _ , le0 :: sub0 , le1 :: sub1 , eq :: eqs
 
 splitProductQCtx : forall {n rho} {G0 G' : QCtx n} ->
                    GoodProducts -> G' ≤G (rho *G G0) ->
-                   Sgi _ \ G0' -> (G0' ≤G G0) × (G' ≈G (rho *G G0'))
-splitProductQCtx {G0 = nil} {nil} gp nil = -, nil , nil
+                   Sg _ \ G0' -> (G0' ≤G G0) × (G' ≈G (rho *G G0'))
+splitProductQCtx {G0 = nil} {nil} gp nil = _ , nil , nil
 splitProductQCtx {G0 = p0 :: G0} {p' :: G'} gp (le :: sub) with gp le | splitProductQCtx gp sub
-... | -, le0 , eq | -, sub0 , eqs = -, le0 :: sub0 , eq :: eqs
+... | _ , le0 , eq | _ , sub0 , eqs = _ , le0 :: sub0 , eq :: eqs
 
 module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
   _==QTy?_ : (S S' : QTy) -> Dec (S == S')
@@ -526,86 +531,114 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
     weakenRes sub (var vsub) = var (≤G-trans sub vsub)
     weakenRes sub (app split er sr)
       with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
-    ... | -, -, sube , subs , split' =
+    ... | _ , _ , sube , subs , split' =
       app split' (weakenRes sube er) (weakenRes subs sr)
     weakenRes sub (pm split er sr)
       with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
-    ... | -, -, sube , subs , split' =
+    ... | _ , _ , sube , subs , split' =
       pm split' (weakenRes sube er) (weakenRes (≤-refl :: ≤-refl :: subs) sr)
     weakenRes sub (proj0 er) = proj0 (weakenRes sub er)
     weakenRes sub (proj1 er) = proj1 (weakenRes sub er)
     weakenRes sub (case split er s0r s1r)
       with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
-    ... | -, -, sube , subs , split' =
+    ... | _ , _ , sube , subs , split' =
       case split' (weakenRes sube er) (weakenRes (≤-refl :: subs) s0r) (weakenRes (≤-refl :: subs) s1r)
     weakenRes sub (bm split er sr)
       with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
-    ... | -, -, sube , subs , split' = bm split' (weakenRes sube er) (weakenRes (≤-refl :: subs) sr)
+    ... | _ , _ , sube , subs , split' = bm split' (weakenRes sube er) (weakenRes (≤-refl :: subs) sr)
     weakenRes sub (the sr) = the (weakenRes sub sr)
     weakenRes sub (lam sr) = lam (weakenRes (≤-refl :: sub) sr)
     weakenRes sub (ten split s0r s1r)
       with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
-    ... | -, -, sub0 , sub1 , split' =
+    ... | _ , _ , sub0 , sub1 , split' =
       ten split' (weakenRes sub0 s0r) (weakenRes sub1 s1r)
     weakenRes sub (wth s0r s1r) = wth (weakenRes sub s0r) (weakenRes sub s1r)
     weakenRes sub (inj0 sr) = inj0 (weakenRes sub sr)
     weakenRes sub (inj1 sr) = inj1 (weakenRes sub sr)
     weakenRes sub (bang split sr)
       with splitProductQCtx gp (≤G-trans sub (≤G-reflexive split))
-    ... | -, subs , split' = bang split' (weakenRes subs sr)
+    ... | _ , subs , split' = bang split' (weakenRes subs sr)
     weakenRes sub [ er ] = [ weakenRes sub er ]
 
     inferRes : forall {n d} sg (t : Term n d) ->
-               Maybe (Sgi _ \ G -> G |-[ sg ] t)
-    inferRes sg (var th) = just (-, var (≤G-refl _))
+               Maybe (Sg _ \ G -> G |-[ sg ] t)
+    inferRes sg (var th) = just (_ , var (≤G-refl _))
     inferRes sg (app e s) =
-      mapMaybe (\ { ((-, er) , (-, sr)) -> -, app (≈G-refl _) er sr })
+      mapMaybe (\ { ((_ , er) , (_ , sr)) -> _ , app (≈G-refl _) er sr })
                (inferRes sg e ×M inferRes sg s)
     inferRes sg (pm U e s) =
-      inferRes sg e                   >>= \ { (-, er) ->
-      inferRes sg s                   >>= \ { (-,_ {rho0 :: rho1 :: Gs} sr) ->
+      inferRes sg e                   >>= \ { (_ , er) ->
+      inferRes sg s                   >>= \ { (rho0 :: rho1 :: Gs , sr) ->
       Dec->Maybe (sg->rho sg ≤? rho0) >>= \ le0 ->
       Dec->Maybe (sg->rho sg ≤? rho1) >>= \ le1 ->
-      just (-, pm (≈G-refl _) er (weakenRes (le0 :: le1 :: ≤G-refl _) sr)) } }
-    inferRes sg (proj0 e) = mapMaybe (mapSgi proj0) (inferRes sg e)
-    inferRes sg (proj1 e) = mapMaybe (mapSgi proj1) (inferRes sg e)
+      just (_ , pm (≈G-refl _) er (weakenRes (le0 :: le1 :: ≤G-refl _) sr)) } }
+    inferRes sg (proj0 e) = mapMaybe (mapSg id proj0) (inferRes sg e)
+    inferRes sg (proj1 e) = mapMaybe (mapSg id proj1) (inferRes sg e)
     inferRes sg (case U e s0 s1) =
-      inferRes sg e >>= \ { (-, er) ->
-      inferRes sg s0 >>= \ { (-,_ {rho0 :: Gs0} s0r) ->
-      inferRes sg s1 >>= \ { (-,_ {rho1 :: Gs1} s1r) ->
+      inferRes sg e                   >>= \ { (_ , er) ->
+      inferRes sg s0                  >>= \ { (rho0 :: Gs0 , s0r) ->
+      inferRes sg s1                  >>= \ { (rho1 :: Gs1 , s1r) ->
       Dec->Maybe (sg->rho sg ≤? rho0) >>= \ le0 ->
       Dec->Maybe (sg->rho sg ≤? rho1) >>= \ le1 ->
-      just (-, case (≈G-refl _) er (weakenRes (le0 :: fst lowerBoundG _ _) s0r)
-                                   (weakenRes (le1 :: snd lowerBoundG _ _) s1r)) } } }
+      just (_ , case (≈G-refl _) er (weakenRes (le0 :: fst lowerBoundG _ _) s0r)
+                                    (weakenRes (le1 :: snd lowerBoundG _ _) s1r)) } } }
     inferRes sg (bm T e s) =
-      inferRes sg e >>= \ { (-, er) ->
-      inferRes sg s >>= \ { (-,_ {rho :: Gs} sr) ->
+      inferRes sg e >>= \ { (_ , er) ->
+      inferRes sg s >>= \ { (rho :: Gs , sr) ->
       conc sg er sr } }
       where
       conc : forall {Ge rho Gs} sg -> Ge |-[ sg ] e -> rho :: Gs |-[ sg ] s ->
-             Maybe (Sgi _ \ G -> G |-[ sg ] bm T e s)
+             Maybe (Sg _ \ G -> G |-[ sg ] bm T e s)
       conc {Ge} {rho} {Gs} tt er sr =
-        just (-, bm (≈G-refl _) er (subst (\ z -> z :: Gs |-[ tt ] s) (sym (fst *-identity _)) sr))
+        just (_ , bm (≈G-refl _) er (subst (\ z -> z :: Gs |-[ tt ] s) (sym (fst *-identity _)) sr))
       conc {Ge} {rho} {Gs} ff er sr =
-        mapMaybe (\ { refl -> -, bm (≈G-refl _) er (subst (\ z -> z :: Gs |-[ ff ] s)
-                                                          (sym (fst annihil rho))
-                                                          sr) })
+        mapMaybe (\ { refl -> _ , bm (≈G-refl _) er (subst (\ z -> z :: Gs |-[ ff ] s)
+                                                           (sym (fst annihil rho))
+                                                           sr) })
                  (Dec->Maybe (rho ==? e0))
-    inferRes sg (the T s) = mapMaybe (mapSgi the) (inferRes sg s)
+    inferRes sg (the T s) = mapMaybe (mapSg id the) (inferRes sg s)
     inferRes sg (lam s) =
-      inferRes sg s                  >>= \ { (-,_ {rho :: G} sr) ->
+      inferRes sg s                  >>= \ { (rho :: G , sr) ->
       Dec->Maybe (sg->rho sg ≤? rho) >>= \ le ->
-      just (-, lam (weakenRes (le :: ≤G-refl _) sr)) }
+      just (_ , lam (weakenRes (le :: ≤G-refl _) sr)) }
     inferRes sg (ten s0 s1) =
-      mapMaybe (\ { ((-, s0r) , (-, s1r)) -> -, ten (≈G-refl _) s0r s1r }) (inferRes sg s0 ×M inferRes sg s1)
-    inferRes sg (wth s0 s1) =
-      mapMaybe (\ { ((-, s0r) , (-, s1r)) -> -, wth (weakenRes (fst lowerBoundG _ _) s0r)
-                                                    (weakenRes (snd lowerBoundG _ _) s1r) })
+      mapMaybe (\ { ((_ , s0r) , (_ , s1r)) -> _ , ten (≈G-refl _) s0r s1r })
                (inferRes sg s0 ×M inferRes sg s1)
-    inferRes sg (inj0 s) = mapMaybe (mapSgi inj0) (inferRes sg s)
-    inferRes sg (inj1 s) = mapMaybe (mapSgi inj1) (inferRes sg s)
+    inferRes sg (wth s0 s1) =
+      mapMaybe (\ { ((_ , s0r) , (_ , s1r)) -> _ , wth (weakenRes (fst lowerBoundG _ _) s0r)
+                                                       (weakenRes (snd lowerBoundG _ _) s1r) })
+               (inferRes sg s0 ×M inferRes sg s1)
+    inferRes sg (inj0 s) = mapMaybe (mapSg id inj0) (inferRes sg s)
+    inferRes sg (inj1 s) = mapMaybe (mapSg id inj1) (inferRes sg s)
     inferRes sg (bang rho s) =
-      mapMaybe (\ { (-, sr) -> -, bang (≈G-refl _) sr }) (inferRes sg s)
-    inferRes sg [ e ] = mapMaybe (mapSgi [_]) (inferRes sg e)
+      mapMaybe (\ { (_ , sr) -> _ , bang (≈G-refl _) sr }) (inferRes sg s)
+    inferRes sg [ e ] = mapMaybe (mapSg id [_]) (inferRes sg e)
 
-    -- TODO: say something about inferRes producing the best resources
+    inferResBest : forall {n a} sg (t : Term n a) ->
+                   IfJust {a = c ⊔ l'} {p = c ⊔ l'} (inferRes sg t) \ { (G , _) -> forall {G'} -> G' |-[ sg ] t -> G' ≤G G }
+    inferResBest sg (var th) (var sub) = sub
+    inferResBest sg (app e s) = {!!}
+    inferResBest sg (pm U e s) = {!!}
+    inferResBest sg (proj0 e) with inferRes sg e | inferResBest sg e
+    ... | just _ | r = \ { (proj0 er) -> r er }
+    ... | nothing | r = r
+    inferResBest sg (proj1 e) with inferRes sg e | inferResBest sg e
+    ... | just _ | r = \ { (proj1 er) -> r er }
+    ... | nothing | r = r
+    inferResBest sg (case U e s0 s1) = {!!}
+    inferResBest sg (bm T e s) = {!!}
+    inferResBest sg (the S s) = {!!}
+    inferResBest sg (lam s) = {!QCtx!}
+    inferResBest sg (ten s0 s1) with inferRes sg s0 | inferRes sg s1 | inferResBest sg s0 | inferResBest sg s1 | ≤G-trans | ≤G-reflexive | _+G-mono_
+    ... | just _ | just _ | r0 | r1 | ≤G-trans | ≤G-reflexive | _+G-mono_ =
+      \ { (ten {G0 = G0} {G1} split s0r s1r) -> ≤G-trans (≤G-reflexive {!split!}) (r0 s0r +G-mono r1 s1r)
+      }
+    ... | just _ | nothing | r0 | r1 | _ | _ | _ = r1
+    ... | nothing | b | r0 | r1 | _ | _ | _ = r0
+    inferResBest sg (wth s0 s1) = {!!}
+    inferResBest sg (inj0 s) with inferRes sg s --| inferResBest sg s
+    inferResBest sg (inj0 s) | just x = {!QCtx!}
+    inferResBest sg (inj0 s) | nothing = {!QCtx!} --lift {l = c ⊔ l'} <>
+    inferResBest sg (inj1 s) = {!help!}
+    inferResBest sg (bang rho s) = {!!}
+    inferResBest sg [ e ] = {!!}
