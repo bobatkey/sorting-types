@@ -753,6 +753,9 @@ IfJust : forall {a p A} -> Maybe {a} A -> (A -> Set p) -> Set p
 IfJust (just x) P = P x
 IfJust nothing P = Lift One
 
+data IfJust' {a p A} (P : A -> Set p) : Maybe {a} A -> Set p where
+  ifJust : forall {x} -> P x -> IfJust' P (just x)
+
 IfJust-mapMaybe : forall {a b p A} {B : Set b}
                   (P : B -> Set p) (f : A -> B) (ma : Maybe {a} A) ->
                   IfJust ma (P o f) -> IfJust (mapMaybe f ma) P

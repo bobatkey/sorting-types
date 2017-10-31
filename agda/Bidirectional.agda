@@ -614,31 +614,52 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
       mapMaybe (\ { (_ , sr) -> _ , bang (≈G-refl _) sr }) (inferRes sg s)
     inferRes sg [ e ] = mapMaybe (mapSg id [_]) (inferRes sg e)
 
-    inferResBest : forall {n a} sg (t : Term n a) ->
-                   IfJust {a = c ⊔ l'} {p = c ⊔ l'} (inferRes sg t) \ { (G , _) -> forall {G'} -> G' |-[ sg ] t -> G' ≤G G }
-    inferResBest sg (var th) (var sub) = sub
-    inferResBest sg (app e s) = {!!}
-    inferResBest sg (pm U e s) = {!!}
-    inferResBest sg (proj0 e) with inferRes sg e | inferResBest sg e
-    ... | just _ | r = \ { (proj0 er) -> r er }
-    ... | nothing | r = r
-    inferResBest sg (proj1 e) with inferRes sg e | inferResBest sg e
-    ... | just _ | r = \ { (proj1 er) -> r er }
-    ... | nothing | r = r
-    inferResBest sg (case U e s0 s1) = {!!}
-    inferResBest sg (bm T e s) = {!!}
-    inferResBest sg (the S s) = {!!}
-    inferResBest sg (lam s) = {!QCtx!}
-    inferResBest sg (ten s0 s1) with inferRes sg s0 | inferRes sg s1 | inferResBest sg s0 | inferResBest sg s1 | ≤G-trans | ≤G-reflexive | _+G-mono_
-    ... | just _ | just _ | r0 | r1 | ≤G-trans | ≤G-reflexive | _+G-mono_ =
-      \ { (ten {G0 = G0} {G1} split s0r s1r) -> ≤G-trans (≤G-reflexive {!split!}) (r0 s0r +G-mono r1 s1r)
-      }
-    ... | just _ | nothing | r0 | r1 | _ | _ | _ = r1
-    ... | nothing | b | r0 | r1 | _ | _ | _ = r0
-    inferResBest sg (wth s0 s1) = {!!}
-    inferResBest sg (inj0 s) with inferRes sg s --| inferResBest sg s
-    inferResBest sg (inj0 s) | just x = {!QCtx!}
-    inferResBest sg (inj0 s) | nothing = {!QCtx!} --lift {l = c ⊔ l'} <>
-    inferResBest sg (inj1 s) = {!help!}
-    inferResBest sg (bang rho s) = {!!}
-    inferResBest sg [ e ] = {!!}
+    inferResBest : forall {n a sg} {t : Term n a} {G} tr -> inferRes sg t == just (G , tr) ->
+                   forall {G'} -> G' |-[ sg ] t -> G' ≤G G
+    inferResBest (var ._) refl (var sub') = sub'
+    inferResBest {sg = sg} {app e s} (app split er sr) eq (app split' er' sr') with inferRes sg e
+    inferResBest {sg = sg} {app e s} (app split er sr) () (app split' er' sr') | nothing
+    inferResBest {sg = sg} {app e s} (app split er sr) eq (app split' er' sr') | just a with inferRes sg s
+    inferResBest {sg = sg} {app e s} (app split er sr) () (app split' er' sr') | just a | nothing
+    inferResBest {sg = sg} {app e s} (app ._ er sr) refl (app split' er' sr') | just (_ , _) | just (_ , _) =
+      ≤G-trans (≤G-reflexive split') ({!inferResBest er ? er'!} +G-mono {!!})
+    inferResBest (pm split er sr) eq (pm split' er' sr') = {!!}
+    inferResBest (proj0 er) eq (proj0 er') = {!!}
+    inferResBest (proj1 er) eq (proj1 er') = {!!}
+    inferResBest (case split er s0r s1r) eq (case split' er' s0r' s1r') = {!!}
+    inferResBest (bm split er sr) eq (bm split' er' sr') = {!!}
+    inferResBest (the sr) eq (the sr') = {!!}
+    inferResBest (lam sr) eq (lam sr') = {!!}
+    inferResBest (ten split s0r s1r) eq (ten split' s0r' s1r') = {!!}
+    inferResBest (wth s0r s1r) eq (wth s0r' s1r') = {!!}
+    inferResBest (inj0 sr) eq (inj0 sr') = {!!}
+    inferResBest (inj1 sr) eq (inj1 sr') = {!!}
+    inferResBest (bang split sr) eq (bang split' sr') = {!!}
+    inferResBest [ er ] eq [ er' ] = {!!}
+
+    --inferResBest sg (var th) (var sub) = sub
+    --inferResBest sg (app e s) = {!!}
+    --inferResBest sg (pm U e s) = {!!}
+    --inferResBest sg (proj0 e) with inferRes sg e | inferResBest sg e
+    --... | just _ | r = \ { (proj0 er) -> r er }
+    --... | nothing | r = r
+    --inferResBest sg (proj1 e) with inferRes sg e | inferResBest sg e
+    --... | just _ | r = \ { (proj1 er) -> r er }
+    --... | nothing | r = r
+    --inferResBest sg (case U e s0 s1) = {!!}
+    --inferResBest sg (bm T e s) = {!!}
+    --inferResBest sg (the S s) = {!!}
+    --inferResBest sg (lam s) = {!QCtx!}
+    --inferResBest sg (ten s0 s1) with inferRes sg s0 | inferRes sg s1 | inferResBest sg s0 | inferResBest sg s1 | ≤G-trans | ≤G-reflexive | _+G-mono_
+    --... | just _ | just _ | r0 | r1 | ≤G-trans | ≤G-reflexive | _+G-mono_ =
+    --  \ { (ten {G0 = G0} {G1} split s0r s1r) -> ≤G-trans (≤G-reflexive {!split!}) (r0 s0r +G-mono r1 s1r)
+    --  }
+    --... | just _ | nothing | r0 | r1 | _ | _ | _ = r1
+    --... | nothing | b | r0 | r1 | _ | _ | _ = r0
+    --inferResBest sg (wth s0 s1) = {!!}
+    --inferResBest sg (inj0 s) with inferRes sg s --| inferResBest sg s
+    --inferResBest sg (inj0 s) | just x = {!QCtx!}
+    --inferResBest sg (inj0 s) | nothing = {!QCtx!} --lift {l = c ⊔ l'} <>
+    --inferResBest sg (inj1 s) = {!help!}
+    --inferResBest sg (bang rho s) = {!!}
+    --inferResBest sg [ e ] = {!!}
