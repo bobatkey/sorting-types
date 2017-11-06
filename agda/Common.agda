@@ -651,6 +651,14 @@ data VZip {a b r} {A : Set a} {B : Set b} (R : A -> B -> Set r)
   _::_ : forall {a b n as bs} (r : R a b) (rs : VZip R {n} as bs)
          -> VZip R (a :: as) (b :: bs)
 
+headVZip : forall {a b r A B R n x xs y ys} ->
+           VZip {a} {b} {r} {A} {B} R {succ n} (x :: xs) (y :: ys) -> R x y
+headVZip (r :: rs) = r
+
+tailVZip : forall {a b r A B R n x xs y ys} ->
+           VZip {a} {b} {r} {A} {B} R {succ n} (x :: xs) (y :: ys) -> VZip R xs ys
+tailVZip (r :: rs) = rs
+
 module RelProp where
   data RelProp (n : Nat) : Set where
     impl : RelProp (succ n) -> RelProp n
@@ -761,3 +769,11 @@ IfJust-mapMaybe : forall {a b p A} {B : Set b}
                   IfJust ma (P o f) -> IfJust (mapMaybe f ma) P
 IfJust-mapMaybe P f (just a) x = x
 IfJust-mapMaybe P f nothing x = x
+
+record Graph {a b} {A : Set a} {B : A -> Set b} (f : (x : A) -> B x) (x : A) (y : B x) : Set (a ⊔ b) where
+  constructor ingraph
+  field
+    eq : f x == y
+
+inspect : forall {a b} {A : Set a} {B : A -> Set b} (f : (x : A) -> B x) (x : A) -> Graph f x (f x)
+inspect f x = ingraph refl

@@ -106,6 +106,11 @@ _+G-mono_ : forall {n} {G0 G0' G1 G1' : QCtx n} ->
 nil +G-mono nil = nil
 (le0 :: sub0) +G-mono (le1 :: sub1) = le0 +-mono le1 :: sub0 +G-mono sub1
 
+_*G-mono_ : forall {n rho rho'} {G G' : QCtx n} ->
+            rho ≤ rho' -> G ≤G G' -> rho *G G ≤G rho' *G G'
+le *G-mono nil = nil
+le *G-mono (leG :: sub) = le *-mono leG :: le *G-mono sub
+
 data Dir : Set where
   syn chk : Dir
 
@@ -113,7 +118,7 @@ data Term (n : Nat) : Dir -> Set c where
   var : (th : 1 ≤th n) -> Term n syn
   app : (e : Term n syn) (s : Term n chk) -> Term n syn
   pm : (U : QTy) (e : Term n syn) (s : Term (succ (succ n)) chk) -> Term n syn
-  proj0 proj1 : (e : Term n syn) -> Term n syn
+  proj : (lr : Two) (e : Term n syn) -> Term n syn
   case : (U : QTy) (e : Term n syn) (s0 s1 : Term (succ n) chk) -> Term n syn
   bm : (T : QTy) (e : Term n syn) (s : Term (succ n) chk) -> Term n syn
   the : (T : QTy) (s : Term n chk) -> Term n syn
@@ -121,7 +126,7 @@ data Term (n : Nat) : Dir -> Set c where
   lam : (s : Term (succ n) chk) -> Term n chk
   ten : (s0 s1 : Term n chk) -> Term n chk
   wth : (s0 s1 : Term n chk) -> Term n chk
-  inj0 inj1 : (s : Term n chk) -> Term n chk
+  inj : (lr : Two) (s : Term n chk) -> Term n chk
   bang : (rho : C) (s : Term n chk) -> Term n chk
   [_] : (e : Term n syn) -> Term n chk
 
@@ -143,14 +148,10 @@ data _|-_∈_ {n} (D : Ctx n) where
        (et : D |- e ∈ S <**> T) (st : T :: S :: D |- U ∋ s)
        ->
        D |- pm U e s ∈ U
-  proj0 : forall {e S T}
-          (et : D |- e ∈ S & T)
-          ->
-          D |- proj0 e ∈ S
-  proj1 : forall {e S T}
-          (et : D |- e ∈ S & T)
-          ->
-          D |- proj1 e ∈ T
+  proj : forall {lr e S T}
+         (et : D |- e ∈ S & T)
+         ->
+         D |- proj lr e ∈ if lr then S else T
   case : forall {e s0 s1 S T U}
          (et : D |- e ∈ S || T) (s0t : S :: D |- U ∋ s0) (s1t : T :: D |- U ∋ s1)
          ->
@@ -177,14 +178,10 @@ data _|-_∋_ {n} (D : Ctx n) where
         (s0t : D |- S0 ∋ s0) (s1t : D |- S1 ∋ s1)
         ->
         D |- S0 & S1 ∋ wth s0 s1
-  inj0 : forall {s S T}
-         (st : D |- S ∋ s)
-         ->
-         D |- S || T ∋ inj0 s
-  inj1 : forall {s S T}
-         (st : D |- T ∋ s)
-         ->
-         D |- S || T ∋ inj1 s
+  inj : forall {lr s S T}
+        (st : D |- if lr then S else T ∋ s)
+        ->
+        D |- S || T ∋ inj lr s
   bang : forall {s S rho}
          (st : D |- S ∋ s)
          ->
@@ -215,14 +212,10 @@ data _|-[_]_ {n} (G : QCtx n) (sg : Two) : forall {d} -> Term n d -> Set (l' ⊔
        (er : Ge |-[ sg ] e) (sr : sg' :: sg' :: Gs |-[ sg ] s)
        ->
        G |-[ sg ] pm U e s
-  proj0 : forall {e}
-          (er : G |-[ sg ] e)
-          ->
-          G |-[ sg ] proj0 e
-  proj1 : forall {e}
-          (er : G |-[ sg ] e)
-          ->
-          G |-[ sg ] proj1 e
+  proj : forall {lr e}
+         (er : G |-[ sg ] e)
+         ->
+         G |-[ sg ] proj lr e
   case : let sg' = sg->rho sg in
          forall {Ge Gs U e s0 s1}
          (split : G ≈G Ge +G Gs)
@@ -252,14 +245,10 @@ data _|-[_]_ {n} (G : QCtx n) (sg : Two) : forall {d} -> Term n d -> Set (l' ⊔
         (s0r : G |-[ sg ] s0) (s1r : G |-[ sg ] s1)
         ->
         G |-[ sg ] wth s0 s1
-  inj0 : forall {s}
-         (sr : G |-[ sg ] s)
-         ->
-         G |-[ sg ] inj0 s
-  inj1 : forall {s}
-         (sr : G |-[ sg ] s)
-         ->
-         G |-[ sg ] inj1 s
+  inj : forall {lr s}
+        (sr : G |-[ sg ] s)
+        ->
+        G |-[ sg ] inj lr s
   bang : forall {Gs rho s}
          (split : G ≈G rho *G Gs)
          (sr : Gs |-[ sg ] s)
@@ -400,9 +389,7 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
   ... | refl = refl
   synthUnique (pm et st) (pm et' st') with synthUnique et et'
   ... | refl = refl
-  synthUnique (proj0 et) (proj0 et') with synthUnique et et'
-  ... | refl = refl
-  synthUnique (proj1 et) (proj1 et') with synthUnique et et'
+  synthUnique (proj et) (proj et') with synthUnique et et'
   ... | refl = refl
   synthUnique (case et s0t s1t) (case et' s0t' s1t') with synthUnique et et'
   ... | refl = refl
@@ -436,18 +423,13 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
     inv : forall {S T} -> D |- e ∈ S <**> T -> (Sg _ \ U' -> D |- pm U e s ∈ U') -> T :: S :: D |- U ∋ s
     inv et (_ , pm et' st') with synthUnique et et'
     ... | refl = st'
-  synthType D (proj0 e) with synthType D e
-  ... | no np = no (np o \ { (_ , proj0 et) -> _ , et })
-  ... | yes (S , et) with Is&? S
-  ...   | no np = no (np o \ { (_ , proj0 et') -> _ , _ , synthUnique et et' })
-  ...   | yes (S0 , S1 , refl) = yes (S0 , proj0 et)
-  synthType D (proj1 e) =
+  synthType D (proj lr e) =
     -- testing out monadic-like syntax:
     -- test >>=[ if-fail ] \ success-evidence ->
     -- rest...
-    synthType D e >>=[ (\ { (_ , proj1 et) -> _ , et }) ] \ { (S , et) ->
-    Is&? S >>=[ (\ { (_ , proj1 et') -> _ , _ , synthUnique et et' }) ] \ { (S0 , S1 , refl) ->
-    yes (S1 , proj1 et) } }
+    synthType D e >>=[ (\ { (_ , proj et) -> _ , et }) ] \ { (S , et) ->
+    Is&? S        >>=[ (\ { (_ , proj et') -> _ , _ , synthUnique et et' }) ] \ { (S0 , S1 , refl) ->
+    yes (_ , proj et) } }
   synthType D (case U e s0 s1) =
     synthType D e           >>=[ (\ { (_ , case et _ _) -> _ , et }) ] \ { (ST , et) ->
     Is||? ST                >>=[ (\ { (_ , case et' _ _) -> _ , _ , synthUnique et et' }) ]
@@ -480,41 +462,16 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
   ... | no np = no (np o \ { (ten s0t s1t) -> _ , _ , refl })
   ... | yes (S , T , refl) =
     mapDec (uncurry ten) (\ { (ten s0t s1t) -> s0t , s1t }) (checkType D S s0 ×? checkType D T s1)
-  --checkType D U (pm e s) with synthType D e
-  --... | no np = no (np o \ { (pm et' st') -> _ , et' })
-  --... | yes (ST , et) with Is<**>? ST
-  --...   | no np =
-  --  no (np o \ { (pm et' st') -> _ , _ , synthUnique et et' })
-  --...   | yes (S , T , refl) =
-  --  mapDec (pm et) inv (checkType (T :: S :: D) U s)
-  --  where
-  --  inv : D |- U ∋ pm e s -> T :: S :: D |- U ∋ s
-  --  inv (pm et' st') with synthUnique et et'
-  --  ... | refl = st'
   checkType D S (wth s0 s1) with Is&? S
   ... | no np = no \ { (wth s0t s1t) -> np (_ , _ , refl) }
   ... | yes (S0 , S1 , refl) =
     mapDec (\ { (s0t , s1t) -> wth s0t s1t })
            (\ { (wth s0t s1t) -> s0t , s1t })
            (checkType D S0 s0 ×? checkType D S1 s1)
-  checkType D S (inj0 s) with Is||? S
-  ... | no np = no (np o \ { (inj0 st) -> _ , _ , refl })
-  ... | yes (S0 , S1 , refl) =
-    mapDec inj0 (\ { (inj0 st) -> st }) (checkType D S0 s)
-  checkType D ST (inj1 s) =
-    Is||? ST >>=[ (\ { (inj1 st) -> _ , _ , refl }) ] \ { (S , T , refl) ->
-    checkType D T s >>=[ (\ { (inj1 st) -> st }) ]
-    yes o inj1 }
-  --checkType D U (case e s0 s1) with synthType D e
-  --... | no np = no (np o \ { (case et s0t s1t) -> _ , et })
-  --... | yes (ST , et) with Is||? ST
-  --...   | no np = no (np o \ { (case et' s0t' s1t') -> _ , _ , synthUnique et et' })
-  --...   | yes (S , T , refl) =
-  --  mapDec (uncurry (case et)) inv (checkType (S :: D) U s0 ×? checkType (T :: D) U s1)
-  --  where
-  --  inv : D |- U ∋ case e s0 s1 -> (S :: D |- U ∋ s0) × (T :: D |- U ∋ s1)
-  --  inv (case et' s0t' s1t') with synthUnique et et'
-  --  ... | refl = s0t' , s1t'
+  checkType D ST (inj lr s) =
+    Is||? ST >>=[ (\ { (inj st) -> _ , _ , refl }) ] \ { (S , T , refl) ->
+    checkType D _ s >>=[ (\ { (inj st) -> st }) ]
+    yes o inj }
   checkType D S' (bang rho s) =
     IsBANG? S'      >>=[ (\ { (bang st) -> _ , _ , refl }) ] \ { (rho' , S , refl) ->
     rho' ==? rho    >>=[ (\ { (bang st) -> refl }) ] \ { refl ->
@@ -537,8 +494,7 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
       with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
     ... | _ , _ , sube , subs , split' =
       pm split' (weakenRes sube er) (weakenRes (≤-refl :: ≤-refl :: subs) sr)
-    weakenRes sub (proj0 er) = proj0 (weakenRes sub er)
-    weakenRes sub (proj1 er) = proj1 (weakenRes sub er)
+    weakenRes sub (proj er) = proj (weakenRes sub er)
     weakenRes sub (case split er s0r s1r)
       with splitSumQCtx gs (≤G-trans sub (≤G-reflexive split))
     ... | _ , _ , sube , subs , split' =
@@ -553,113 +509,142 @@ module DecEq (_==?_ : (rho rho' : C) -> Dec (rho == rho')) where
     ... | _ , _ , sub0 , sub1 , split' =
       ten split' (weakenRes sub0 s0r) (weakenRes sub1 s1r)
     weakenRes sub (wth s0r s1r) = wth (weakenRes sub s0r) (weakenRes sub s1r)
-    weakenRes sub (inj0 sr) = inj0 (weakenRes sub sr)
-    weakenRes sub (inj1 sr) = inj1 (weakenRes sub sr)
+    weakenRes sub (inj sr) = inj (weakenRes sub sr)
     weakenRes sub (bang split sr)
       with splitProductQCtx gp (≤G-trans sub (≤G-reflexive split))
     ... | _ , subs , split' = bang split' (weakenRes subs sr)
     weakenRes sub [ er ] = [ weakenRes sub er ]
 
     inferRes : forall {n d} sg (t : Term n d) ->
-               Maybe (Sg _ \ G -> G |-[ sg ] t)
-    inferRes sg (var th) = just (_ , var (≤G-refl _))
+               Maybe (Sg _ \ G -> G |-[ sg ] t × forall {G'} -> G' |-[ sg ] t -> G' ≤G G)
+    inferRes sg (var th) = just (_ , var (≤G-refl _) , \ { (var th') -> th' })
     inferRes sg (app e s) =
-      mapMaybe (\ { ((_ , er) , (_ , sr)) -> _ , app (≈G-refl _) er sr })
+      mapMaybe (\ { ((Ge , er , eb) , (Gs , sr , sb)) ->
+                  Ge +G Gs
+                  , app (≈G-refl _) er sr
+                  , \ { (app split' er' sr') -> ≤G-trans (≤G-reflexive split') (eb er' +G-mono sb sr') } })
                (inferRes sg e ×M inferRes sg s)
     inferRes sg (pm U e s) =
-      inferRes sg e                   >>= \ { (_ , er) ->
-      inferRes sg s                   >>= \ { (rho0 :: rho1 :: Gs , sr) ->
+      inferRes sg e                   >>= \ { (_ , er , eb) ->
+      inferRes sg s                   >>= \ { (rho0 :: rho1 :: Gs , sr , sb) ->
       Dec->Maybe (sg->rho sg ≤? rho0) >>= \ le0 ->
       Dec->Maybe (sg->rho sg ≤? rho1) >>= \ le1 ->
-      just (_ , pm (≈G-refl _) er (weakenRes (le0 :: le1 :: ≤G-refl _) sr)) } }
-    inferRes sg (proj0 e) = mapMaybe (mapSg id proj0) (inferRes sg e)
-    inferRes sg (proj1 e) = mapMaybe (mapSg id proj1) (inferRes sg e)
+      just (_ , pm (≈G-refl _) er (weakenRes (le0 :: le1 :: ≤G-refl _) sr)
+           , \ { (pm split' er' sr') ->
+               ≤G-trans (≤G-reflexive split') (eb er' +G-mono tailVZip (tailVZip (sb sr'))) }) } }
+    inferRes sg (proj lr e) = mapMaybe (mapSg id (mapSg proj \ b -> \ { (proj er) -> b er })) (inferRes sg e)
     inferRes sg (case U e s0 s1) =
-      inferRes sg e                   >>= \ { (_ , er) ->
-      inferRes sg s0                  >>= \ { (rho0 :: Gs0 , s0r) ->
-      inferRes sg s1                  >>= \ { (rho1 :: Gs1 , s1r) ->
+      inferRes sg e >>= \ { (Ge , er , eb) ->
+      inferRes sg s0 >>= \ { (rho0 :: Gs0 , s0r , s0b) ->
+      inferRes sg s1 >>= \ { (rho1 :: Gs1 , s1r , s1b) ->
       Dec->Maybe (sg->rho sg ≤? rho0) >>= \ le0 ->
       Dec->Maybe (sg->rho sg ≤? rho1) >>= \ le1 ->
-      just (_ , case (≈G-refl _) er (weakenRes (le0 :: fst lowerBoundG _ _) s0r)
-                                    (weakenRes (le1 :: snd lowerBoundG _ _) s1r)) } } }
+      just (Ge +G meetG Gs0 Gs1
+           , case (≈G-refl _) er (weakenRes (le0 :: fst lowerBoundG _ _) s0r)
+                                 (weakenRes (le1 :: snd lowerBoundG _ _) s1r)
+           , \ { (case split' er' s0r' s1r') ->
+               ≤G-trans (≤G-reflexive split')
+                        (eb er' +G-mono greatestG (tailVZip (s0b s0r'))
+                                                  (tailVZip (s1b s1r'))) }) } } }
     inferRes sg (bm T e s) =
-      inferRes sg e >>= \ { (_ , er) ->
-      inferRes sg s >>= \ { (rho :: Gs , sr) ->
-      conc sg er sr } }
+      inferRes sg e >>= \ { (_ , er , eb) ->
+      inferRes sg s >>= \ { (rho :: Gs , sr , sb) ->
+      conc sg er eb sr sb } }
       where
-      conc : forall {Ge rho Gs} sg -> Ge |-[ sg ] e -> rho :: Gs |-[ sg ] s ->
-             Maybe (Sg _ \ G -> G |-[ sg ] bm T e s)
-      conc {Ge} {rho} {Gs} tt er sr =
-        just (_ , bm (≈G-refl _) er (subst (\ z -> z :: Gs |-[ tt ] s) (sym (fst *-identity _)) sr))
-      conc {Ge} {rho} {Gs} ff er sr =
-        mapMaybe (\ { refl -> _ , bm (≈G-refl _) er (subst (\ z -> z :: Gs |-[ ff ] s)
-                                                           (sym (fst annihil rho))
-                                                           sr) })
-                 (Dec->Maybe (rho ==? e0))
-    inferRes sg (the T s) = mapMaybe (mapSg id the) (inferRes sg s)
+      conc : forall {Ge rho Gs} sg ->
+             Ge |-[ sg ] e -> (forall {G'} -> G' |-[ sg ] e -> G' ≤G Ge) ->
+             rho :: Gs |-[ sg ] s -> (forall {G'} -> G' |-[ sg ] s -> G' ≤G rho :: Gs) ->
+             Maybe (Sg _ \ G -> Sg (G |-[ sg ] bm T e s) \ r -> forall {G'} -> G' |-[ sg ] bm T e s -> G' ≤G G)
+      conc {Ge} {rho} {Gs} tt er eb sr sb =
+        just (_ , bm (≈G-refl _) er (subst (\ z -> z :: Gs |-[ tt ] s) (sym (fst *-identity _)) sr)
+             , \ { (bm split' er' sr') ->
+                 ≤G-trans (≤G-reflexive split') (eb er' +G-mono tailVZip (sb sr')) })
+      conc {Ge} {rho} {Gs} ff er eb sr sb =
+        mapMaybe (\ le ->
+                    _ , bm (≈G-refl _)
+                           er
+                           (weakenRes (≤-trans (≤-reflexive (fst annihil rho)) le :: ≤G-refl _) sr)
+                    , \ { (bm split' er' sr') ->
+                        ≤G-trans (≤G-reflexive split') (eb er' +G-mono tailVZip (sb sr')) })
+                 (Dec->Maybe (e0 ≤? rho))
+    inferRes sg (the S s) = mapMaybe (mapSg id (mapSg the \ b -> \ { (the sr) -> b sr })) (inferRes sg s)
     inferRes sg (lam s) =
-      inferRes sg s                  >>= \ { (rho :: G , sr) ->
-      Dec->Maybe (sg->rho sg ≤? rho) >>= \ le ->
-      just (_ , lam (weakenRes (le :: ≤G-refl _) sr)) }
+      inferRes sg s                   >>= \ { (rhos :: G , sr , sb) ->
+      Dec->Maybe (sg->rho sg ≤? rhos) >>= \ le ->
+      just (_ , lam (weakenRes (le :: ≤G-refl _) sr) , \ { (lam sr') -> tailVZip (sb sr') }) }
     inferRes sg (ten s0 s1) =
-      mapMaybe (\ { ((_ , s0r) , (_ , s1r)) -> _ , ten (≈G-refl _) s0r s1r })
+      mapMaybe (\ { ((Gs0 , s0r , s0b) , (Gs1 , s1r , s1b)) ->
+                  _ , ten (≈G-refl _) s0r s1r
+                  , \ { (ten split' s0r' s1r') ->
+                      ≤G-trans (≤G-reflexive split') (s0b s0r' +G-mono s1b s1r') } })
                (inferRes sg s0 ×M inferRes sg s1)
     inferRes sg (wth s0 s1) =
-      mapMaybe (\ { ((_ , s0r) , (_ , s1r)) -> _ , wth (weakenRes (fst lowerBoundG _ _) s0r)
-                                                       (weakenRes (snd lowerBoundG _ _) s1r) })
+      mapMaybe (\ { ((Gs0 , s0r , s0b) , (Gs1 , s1r , s1b)) ->
+                  meetG Gs0 Gs1
+                  , wth (weakenRes (fst lowerBoundG _ _) s0r) (weakenRes (snd lowerBoundG _ _) s1r)
+                  , \ { (wth s0r' s1r') -> greatestG (s0b s0r') (s1b s1r') } })
                (inferRes sg s0 ×M inferRes sg s1)
-    inferRes sg (inj0 s) = mapMaybe (mapSg id inj0) (inferRes sg s)
-    inferRes sg (inj1 s) = mapMaybe (mapSg id inj1) (inferRes sg s)
+    inferRes sg (inj lr s) = mapMaybe (mapSg id (mapSg inj \ b -> \ { (inj sr) -> b sr })) (inferRes sg s)
     inferRes sg (bang rho s) =
-      mapMaybe (\ { (_ , sr) -> _ , bang (≈G-refl _) sr }) (inferRes sg s)
-    inferRes sg [ e ] = mapMaybe (mapSg id [_]) (inferRes sg e)
+      mapMaybe (mapSg _
+                      (mapSg (bang (≈G-refl _))
+                             \ sb -> \ { (bang split' sr') ->
+                                         ≤G-trans (≤G-reflexive split') (≤-refl *G-mono sb sr') }))
+               (inferRes sg s)
+    inferRes sg [ e ] = mapMaybe (mapSg id (mapSg [_] \ b -> \ { ([ er ]) -> b er })) (inferRes sg e)
 
-    inferResBest : forall {n a sg} {t : Term n a} {G} tr -> inferRes sg t == just (G , tr) ->
-                   forall {G'} -> G' |-[ sg ] t -> G' ≤G G
-    inferResBest (var ._) refl (var sub') = sub'
-    inferResBest {sg = sg} {app e s} (app split er sr) eq (app split' er' sr') with inferRes sg e
-    inferResBest {sg = sg} {app e s} (app split er sr) () (app split' er' sr') | nothing
-    inferResBest {sg = sg} {app e s} (app split er sr) eq (app split' er' sr') | just a with inferRes sg s
-    inferResBest {sg = sg} {app e s} (app split er sr) () (app split' er' sr') | just a | nothing
-    inferResBest {sg = sg} {app e s} (app ._ er sr) refl (app split' er' sr') | just (_ , _) | just (_ , _) =
-      ≤G-trans (≤G-reflexive split') ({!inferResBest er ? er'!} +G-mono {!!})
-    inferResBest (pm split er sr) eq (pm split' er' sr') = {!!}
-    inferResBest (proj0 er) eq (proj0 er') = {!!}
-    inferResBest (proj1 er) eq (proj1 er') = {!!}
-    inferResBest (case split er s0r s1r) eq (case split' er' s0r' s1r') = {!!}
-    inferResBest (bm split er sr) eq (bm split' er' sr') = {!!}
-    inferResBest (the sr) eq (the sr') = {!!}
-    inferResBest (lam sr) eq (lam sr') = {!!}
-    inferResBest (ten split s0r s1r) eq (ten split' s0r' s1r') = {!!}
-    inferResBest (wth s0r s1r) eq (wth s0r' s1r') = {!!}
-    inferResBest (inj0 sr) eq (inj0 sr') = {!!}
-    inferResBest (inj1 sr) eq (inj1 sr') = {!!}
-    inferResBest (bang split sr) eq (bang split' sr') = {!!}
-    inferResBest [ er ] eq [ er' ] = {!!}
-
-    --inferResBest sg (var th) (var sub) = sub
-    --inferResBest sg (app e s) = {!!}
-    --inferResBest sg (pm U e s) = {!!}
-    --inferResBest sg (proj0 e) with inferRes sg e | inferResBest sg e
-    --... | just _ | r = \ { (proj0 er) -> r er }
-    --... | nothing | r = r
-    --inferResBest sg (proj1 e) with inferRes sg e | inferResBest sg e
-    --... | just _ | r = \ { (proj1 er) -> r er }
-    --... | nothing | r = r
-    --inferResBest sg (case U e s0 s1) = {!!}
-    --inferResBest sg (bm T e s) = {!!}
-    --inferResBest sg (the S s) = {!!}
-    --inferResBest sg (lam s) = {!QCtx!}
-    --inferResBest sg (ten s0 s1) with inferRes sg s0 | inferRes sg s1 | inferResBest sg s0 | inferResBest sg s1 | ≤G-trans | ≤G-reflexive | _+G-mono_
-    --... | just _ | just _ | r0 | r1 | ≤G-trans | ≤G-reflexive | _+G-mono_ =
-    --  \ { (ten {G0 = G0} {G1} split s0r s1r) -> ≤G-trans (≤G-reflexive {!split!}) (r0 s0r +G-mono r1 s1r)
-    --  }
-    --... | just _ | nothing | r0 | r1 | _ | _ | _ = r1
-    --... | nothing | b | r0 | r1 | _ | _ | _ = r0
-    --inferResBest sg (wth s0 s1) = {!!}
-    --inferResBest sg (inj0 s) with inferRes sg s --| inferResBest sg s
-    --inferResBest sg (inj0 s) | just x = {!QCtx!}
-    --inferResBest sg (inj0 s) | nothing = {!QCtx!} --lift {l = c ⊔ l'} <>
-    --inferResBest sg (inj1 s) = {!help!}
-    --inferResBest sg (bang rho s) = {!!}
-    --inferResBest sg [ e ] = {!!}
+    -- interesting things happen where a variable is bound,
+    -- i.e, where there is a possibility of failure
+    inferResComplete : forall {n G d} sg (t : Term n d) -> G |-[ sg ] t ->
+                       Sg _ \ G' ->
+                       Sg (G' |-[ sg ] t) \ r' ->
+                       Sg (forall {G''} -> G'' |-[ sg ] t -> G'' ≤G G') \ b' ->
+                       inferRes sg t == just (G' , r' , b')
+    inferResComplete sg (var th) (var sub) = _ , _ , _ , refl
+    inferResComplete sg (app e s) (app split er sr)
+      with inferResComplete sg e er | inferResComplete sg s sr
+    ... | Ge' , er' , eb' , eeq | Gs' , sr' , sb' , seq rewrite eeq | seq = _ , _ , _ , refl
+    inferResComplete sg (pm U e s) (pm split er sr)
+      with inferResComplete sg e er | inferResComplete sg s sr
+    ... | Ge' , er' , eb' , eeq | rho0' :: rho1' :: Gs' , sr' , sb' , seq rewrite eeq | seq
+      with sg->rho sg ≤? rho0' | sg->rho sg ≤? rho1'
+    ... | yes le0 | yes le1 = _ , _ , _ , refl
+    ... | yes le0 | no nle1 = Zero-elim (nle1 (headVZip (tailVZip (sb' sr))))
+    ... | no nle0 | _ = Zero-elim (nle0 (headVZip (sb' sr)))
+    inferResComplete sg (proj lr e) (proj er) with inferResComplete sg e er
+    ... | G' , er' , eb' , eq rewrite eq = _ , _ , _ , refl
+    inferResComplete sg (case U e s0 s1) (case split er s0r s1r)
+      with inferResComplete sg e er | inferResComplete sg s0 s0r | inferResComplete sg s1 s1r
+    ... | Ge' , er' , eb' , eeq | rho0' :: Gs0' , s0r' , s0b' , s0eq | rho1' :: Gs1' , s1r' , s1b' , s1eq
+      rewrite eeq | s0eq | s1eq with sg->rho sg ≤? rho0' | sg->rho sg ≤? rho1'
+    ... | yes le0 | yes le1 = _ , _ , _ , refl
+    ... | yes le0 | no nle1 = Zero-elim (nle1 (headVZip (s1b' s1r)))
+    ... | no nle0 | _ = Zero-elim (nle0 (headVZip (s0b' s0r)))
+    inferResComplete sg (bm T e s) (bm split er sr)
+      with inferResComplete sg e er | inferResComplete sg s sr
+    inferResComplete tt (bm T e s) (bm split er sr)
+      | Ge' , er' , eb' , eeq | rhos' :: Gs' , sr' , sb' , seq
+      rewrite eeq | seq = _ , _ , _ , refl
+    inferResComplete ff (bm T e s) (bm split er sr)
+      | Ge' , er' , eb' , eeq | rhos' :: Gs' , sr' , sb' , seq
+      rewrite eeq | seq with e0 ≤? rhos'
+    ... | yes p = _ , _ , _ , refl
+    ... | no np = Zero-elim (np (≤-trans (≤-reflexive (sym (fst annihil _))) (headVZip (sb' sr))))
+    inferResComplete sg (the S s) (the sr) with inferResComplete sg s sr
+    ... | G' , sr' , sb' , eq rewrite eq = _ , _ , _ , refl
+    inferResComplete sg (lam s) (lam sr) with inferResComplete sg s sr
+    ... | rhos' :: G' , sr' , sb' , eq rewrite eq with sg->rho sg ≤? rhos'
+    ... | yes p = _ , _ , _ , refl
+    ... | no np = Zero-elim (np (headVZip (sb' sr)))
+    inferResComplete sg (ten s0 s1) (ten split s0r s1r)
+      with inferResComplete sg s0 s0r | inferResComplete sg s1 s1r
+    ... | G0' , s0r' , s0b' , eq0 | G1' , s1r' , s1b' , eq1 rewrite eq0 | eq1 = _ , _ , _ , refl
+    inferResComplete sg (wth s0 s1) (wth s0r s1r)
+      with inferResComplete sg s0 s0r | inferResComplete sg s1 s1r
+    ... | G0' , s0r' , s0b' , eq0 | G1' , s1r' , s1b' , eq1 rewrite eq0 | eq1 = _ , _ , _ , refl
+    inferResComplete sg (inj lr s) (inj sr) with inferResComplete sg s sr
+    ... | G' , sr' , sb' , eq rewrite eq = _ , _ , _ , refl
+    inferResComplete sg (bang rho s) (bang split sr) with inferResComplete sg s sr
+    ... | G' , sr' , sb' , eq rewrite eq = _ , _ , _ , refl
+    inferResComplete sg [ e ] [ er ] with inferResComplete sg e er
+    ... | G' , er' , eb' , eq rewrite eq = _ , _ , _ , refl
