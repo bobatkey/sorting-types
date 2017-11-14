@@ -67,6 +67,32 @@ record MeetSemilattice l' : Set (c ⊔ l ⊔ lsuc l') where
     isMeetSemilattice : IsMeetSemilattice _≤_ meet
   open IsMeetSemilattice isMeetSemilattice public
 
+record IsLattice {l'} (_≤_ : Rel l') (meet join : Op2) : Set (c ⊔ l ⊔ l') where
+  field
+    lowerBound : (forall a b -> meet a b ≤ a) × (forall a b -> meet a b ≤ b)
+    upperBound : (forall a b -> a ≤ join a b) × (forall a b -> b ≤ join a b)
+    greatest : forall {a b m} -> m ≤ a -> m ≤ b -> m ≤ meet a b
+    least : forall {a b m} -> a ≤ m -> b ≤ m -> join a b ≤ m
+    isPoset : IsPoset _≤_
+  open IsPoset isPoset public
+
+record Lattice l' : Set (c ⊔ l ⊔ lsuc l') where
+  field
+    _≤_ : Rel l'
+    meet join : Op2
+    isLattice : IsLattice _≤_ meet join
+  open IsLattice isLattice public
+
+  meetSemilattice : MeetSemilattice l'
+  meetSemilattice = record { isMeetSemilattice = record { lowerBound = lowerBound
+                                                        ; greatest = greatest
+                                                        ; isPoset = isPoset
+                                                        } }
+  open MeetSemilattice meetSemilattice public
+    using (isMeetSemilattice)
+
+--
+
 record IsMonoid (e : C) (· : Op2) : Set (c ⊔ l) where
   field
     identity : Identity · e

@@ -10,6 +10,7 @@ record IsSetoid {c l} {C : Set c} (_≈_ : C → C → Set l) : Set (c ⊔ l) wh
     trans : ∀ {x y z} → x ≈ y → y ≈ z → x ≈ z
 
 record SetoidOver {c} (C : Set c) l : Set (c ⊔ suc l) where
+  infix 5 _≈_
   field
     _≈_ : C → C → Set l
     isSetoid : IsSetoid _≈_

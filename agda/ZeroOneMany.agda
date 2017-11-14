@@ -1,6 +1,7 @@
 module ZeroOneMany where
 
 open import Common hiding (_=>_; LTy; KEY; LIST; _<**>_; _&_; _-o_)
+                   renaming (_*_ to _×_)
 open import Setoid
 
 data 01ω : Set where
@@ -148,6 +149,51 @@ _*01ω_ : Op2
   antisym ω-bot ≤01ω-refl = refl
   antisym ω-bot ω-bot = refl
 
+meet01ω : Op2
+meet01ω 0# 0# = 0#
+meet01ω 0# 1# = ω#
+meet01ω 0# ω# = ω#
+meet01ω 1# 0# = ω#
+meet01ω 1# 1# = 1#
+meet01ω 1# ω# = ω#
+meet01ω ω# y = ω#
+
+01ω-isMeetSemilattice : IsMeetSemilattice _≤01ω_ meet01ω
+01ω-isMeetSemilattice = record
+  { lowerBound = lowerBoundL , lowerBoundR
+  ; greatest = greatest
+  ; isPoset = 01ω-isPoset
+  }
+  where
+  lowerBoundL : forall x y -> meet01ω x y ≤01ω x
+  lowerBoundL 0# 0# = ≤01ω-refl
+  lowerBoundL 0# 1# = ω-bot
+  lowerBoundL 0# ω# = ω-bot
+  lowerBoundL 1# 0# = ω-bot
+  lowerBoundL 1# 1# = ≤01ω-refl
+  lowerBoundL 1# ω# = ω-bot
+  lowerBoundL ω# y = ≤01ω-refl
+
+  lowerBoundR : forall x y -> meet01ω x y ≤01ω y
+  lowerBoundR 0# 0# = ≤01ω-refl
+  lowerBoundR 0# 1# = ω-bot
+  lowerBoundR 0# ω# = ≤01ω-refl
+  lowerBoundR 1# 0# = ω-bot
+  lowerBoundR 1# 1# = ≤01ω-refl
+  lowerBoundR 1# ω# = ≤01ω-refl
+  lowerBoundR ω# y = ω-bot
+
+  greatest : ∀ {x y m} → m ≤01ω x → m ≤01ω y → m ≤01ω meet01ω x y
+  greatest {0#} {0#} mx my = my
+  greatest {0#} {1#} ≤01ω-refl ()
+  greatest {0#} {1#} ω-bot my = ≤01ω-refl
+  greatest {0#} {ω#} mx my = my
+  greatest {1#} {0#} ≤01ω-refl ()
+  greatest {1#} {0#} ω-bot my = ≤01ω-refl
+  greatest {1#} {1#} mx my = my
+  greatest {1#} {ω#} mx my = my
+  greatest {ω#} mx my = mx
+
 01ωPosemiring : Posemiring lzero
 01ωPosemiring = record
   { _≤_ = _≤01ω_
@@ -186,8 +232,62 @@ _*01ω_ : Op2
   *-mono {.ω#} {x'} {1#} {.1#} ω-bot ≤01ω-refl = ω-bot
   *-mono {.ω#} {x'} {ω#} {.ω#} ω-bot ≤01ω-refl = ω-bot
 
-open Posemiring 01ωPosemiring
-open import Quantified 01ωSetoid 01ωPosemiring
+module _ where
+  open MeetSemilatticeSemiring hiding (_+-mono_; _*-mono_)
+
+  01ωMeetSemilatticeSemiring : MeetSemilatticeSemiring lzero
+  _≤_ 01ωMeetSemilatticeSemiring = _
+  e0 01ωMeetSemilatticeSemiring = _
+  e1 01ωMeetSemilatticeSemiring = _
+  _+_ 01ωMeetSemilatticeSemiring = _
+  _*_ 01ωMeetSemilatticeSemiring = _
+  meet 01ωMeetSemilatticeSemiring = _
+  isMeetSemilatticeSemiring 01ωMeetSemilatticeSemiring = record
+    { _+-mono_ = _+-mono_
+    ; _*-mono_ = _*-mono_
+    ; isMeetSemilattice = 01ω-isMeetSemilattice
+    ; isSemiring = 01ω-isSemiring
+    }
+    where open Posemiring 01ωPosemiring
+  --01ωMeetSemilatticeSemiring = record
+  --  { isMeetSemilatticeSemiring = record
+  --    { _+-mono_ = _+-mono_
+  --    ; _*-mono_ = _*-mono_
+  --    ; isMeetSemilattice = 01ω-isMeetSemilattice
+  --    ; isSemiring = 01ω-isSemiring
+  --    }
+  --  }
+  --  where open Posemiring 01ωPosemiring
+
+open MeetSemilatticeSemiring 01ωMeetSemilatticeSemiring
+
+0#-top : forall {x} -> 0# ≤ x -> 0# == x
+0#-top ≤01ω-refl = refl
+1#-top : forall {x} -> 1# ≤ x -> 1# == x
+1#-top ≤01ω-refl = refl
+
+0#-sum : (forall {x} y -> x + y == 0# -> x == 0#)
+       × (forall x {y} -> x + y == 0# -> y == 0#)
+0#-sum = l , r
+  where
+  l : forall {x} y -> x + y == 0# -> x == 0#
+  l {0#} y eq = refl
+  l {1#} 0# ()
+  l {1#} 1# ()
+  l {1#} ω# ()
+  l {ω#} 0# ()
+  l {ω#} 1# ()
+  l {ω#} ω# ()
+
+  r : forall x {y} -> x + y == 0# -> y == 0#
+  r 0# {y} eq = eq
+  r 1# {0#} ()
+  r 1# {1#} ()
+  r 1# {ω#} ()
+  r ω# {y} ()
+
+{-+}
+open import Quantified 01ωSetoid 01ωMeetSemilatticeSemiring
 
 infixr 30 _=>_
 _=>_ : QTy -> QTy -> QTy
@@ -210,7 +310,7 @@ w-r0 S T = lam (lam (app {G0 = sg->rho ff :: sg->rho ff :: nil} (==Zip refl)
                               (var (≤01ω-refl :: ≤01ω-refl :: nil)))
                          (var (≤01ω-refl :: ≤01ω-refl :: nil))))
 
-{--}
+{-+}
 w-r' : forall sg S T -> nil |-[ sg ] w-t S T
 w-r' sg S T = lam (lam (app {G0 = sg->rho sg :: sg->rho sg :: nil} {!!}
                             (app {!!}
@@ -219,4 +319,5 @@ w-r' sg S T = lam (lam (app {G0 = sg->rho sg :: sg->rho sg :: nil} {!!}
                             (var (ω-bot :: ≤01ω-refl :: nil))))
   --where
   --lemma1 : forall sg' -> 1# ω#
-{--}
+{+-}
+{+-}

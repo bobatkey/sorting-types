@@ -645,6 +645,19 @@ vzip : forall {a b c A B C n} -> (A -> B -> C) ->
 vzip f nil ys = nil
 vzip f (x :: xs) (y :: ys) = f x y :: vzip f xs ys
 
+1≤th-index-vmap : forall {a b A B n} (i : 1 ≤th n)
+                  (f : A -> B) (xs : Vec {a} A n) ->
+                  1≤th-index {b} i (vmap f xs) == f (1≤th-index i xs)
+1≤th-index-vmap (os i) f (x :: xs) = refl
+1≤th-index-vmap (o' i) f (x :: xs) = 1≤th-index-vmap i f xs
+
+1≤th-index-vzip : forall {a b c A B C n} (i : 1 ≤th n)
+                  (f : A -> B -> C) (xs : Vec {a} A n) (ys : Vec {b} B n) ->
+                  1≤th-index {c} i (vzip f xs ys)
+                    == f (1≤th-index i xs) (1≤th-index i ys)
+1≤th-index-vzip (os i) f (x :: xs) (y :: ys) = refl
+1≤th-index-vzip (o' i) f (x :: xs) (y :: ys) = 1≤th-index-vzip i f xs ys
+
 data VZip {a b r} {A : Set a} {B : Set b} (R : A -> B -> Set r)
             : forall {n} -> Vec A n -> Vec B n -> Set (a ⊔ b ⊔ r) where
   nil : VZip R nil nil
@@ -658,6 +671,13 @@ headVZip (r :: rs) = r
 tailVZip : forall {a b r A B R n x xs y ys} ->
            VZip {a} {b} {r} {A} {B} R {succ n} (x :: xs) (y :: ys) -> VZip R xs ys
 tailVZip (r :: rs) = rs
+
+1≤th-indexVZip : forall {a b r A B R n xs ys} ->
+                 (i : 1 ≤th n) ->
+                 VZip {a} {b} {r} {A} {B} R {n} xs ys ->
+                 R (1≤th-index i xs) (1≤th-index i ys)
+1≤th-indexVZip (os i) (r :: rs) = r
+1≤th-indexVZip (o' i) (r :: rs) = 1≤th-indexVZip i rs
 
 module RelProp where
   data RelProp (n : Nat) : Set where
@@ -769,6 +789,9 @@ IfJust-mapMaybe : forall {a b p A} {B : Set b}
                   IfJust ma (P o f) -> IfJust (mapMaybe f ma) P
 IfJust-mapMaybe P f (just a) x = x
 IfJust-mapMaybe P f nothing x = x
+
+nothing/=just : forall {a A x} -> nothing {a} {A} == just x -> Zero
+nothing/=just ()
 
 record Graph {a b} {A : Set a} {B : A -> Set b} (f : (x : A) -> B x) (x : A) (y : B x) : Set (a ⊔ b) where
   constructor ingraph
