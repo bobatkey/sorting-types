@@ -11,6 +11,7 @@ record IsBCI (_·_ : A -> A -> A) (B C I : A) : Set (a ⊔ l) where
     Bxyz : forall x y z -> ((B · x) · y) · z ≈ x · (y · z)
     Cxyz : forall x y z -> ((C · x) · y) · z ≈ (x · z) · y
     Ix   : forall x     ->             I · x ≈ x
+    _·-cong_ : forall {x x' y y'} -> x ≈ x' -> y ≈ y' -> x · y ≈ x' · y'
 
 record BCI : Set (a ⊔ l) where
   infixl 8 _·_
