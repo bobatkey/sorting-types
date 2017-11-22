@@ -10,6 +10,13 @@ _o_ : forall {a b c} {A : Set a} {B : A -> Set b} {C : forall {a} -> B a -> Set 
       (f : forall {a} (b : B a) -> C b) (g : forall a -> B a) a -> C (g a)
 (f o g) x = f (g x)
 
+case_return_of_ :
+  forall {a b} {A : Set a} (x : A) (B : A -> Set b) -> (forall x -> B x) -> B x
+case x return B of f = f x
+
+case_of_ : forall {a b} {A : Set a} {B : Set b} (x : A) -> (A -> B) -> B
+case x of f = f x
+
 record Lift {a l} (A : Set a) : Set (a ⊔ l) where
   constructor lift
   field
@@ -23,6 +30,13 @@ Zero-elim ()
 
 Not : forall {a} -> Set a -> Set a
 Not A = A -> Zero
+
+aboutZero : forall {p} (P : Zero -> Set p) {x} -> P x
+aboutZero P {()}
+
+infix 0 _/=_
+_/=_ : forall {a} {A : Set a} -> A -> A -> Set a
+x /= y = Not (x == y)
 
 infixr 1 -,_
 record Sgi {a b} (A : Set a) (B : A -> Set b) : Set (a ⊔ b) where
@@ -108,6 +122,11 @@ and-xor {tt} {tt} impl = refl
 and-xor {tt} {ff} impl = Zero-elim (impl <>)
 and-xor {ff} {y} impl = refl
 
+infixr 1 _⊎_
+data _⊎_ {a b} (A : Set a) (B : Set b) : Set (a ⊔ b) where
+  inl : (a : A) -> A ⊎ B
+  inr : (b : B) -> A ⊎ B
+
 data Dec {x} (X : Set x) : Set x where
   yes : (p : X) -> Dec X
   no : (np : X -> Zero) -> Dec X
@@ -167,6 +186,14 @@ _+N_ : Nat -> Nat -> Nat
 zero   +N n = n
 succ m +N n = succ (m +N n)
 
++N-zero : forall m -> m +N zero == m
++N-zero zero = refl
++N-zero (succ m) = cong succ (+N-zero m)
+
++N-succ : forall m n -> m +N succ n == succ (m +N n)
++N-succ zero n = refl
++N-succ (succ m) n = cong succ (+N-succ m n)
+
 data CompareNat : Nat -> Nat -> Set where
   lt  : (m k : Nat) -> CompareNat m (succ (m +N k))
   gte : (k n : Nat) -> CompareNat (n +N k) n
@@ -223,7 +250,7 @@ infix 6 #_
 #_ : forall {n} m {less : Auto (m <? n)} -> Fin n
 #_ m {less} = from< (toWitness less)
 
-infixr 5 _::_
+infixr 5 _::_ _++_ _+V_
 
 data List {a} (A : Set a) : Set a where
   nil  : List A
@@ -564,7 +591,7 @@ zipLength : forall {a b r A B R xs ys} ->
 zipLength nil = refl
 zipLength (r :: rs) = cong succ (zipLength rs)
 
-infix 4 _≤th_
+infix 4 _≤th_ _<th_ _≤th?_ _<th?_
 -- thinnings
 data _≤th_ : Nat -> Nat -> Set where
   oz : zero ≤th zero
@@ -579,13 +606,128 @@ z≤th : forall n -> zero ≤th n
 z≤th zero = oz
 z≤th (succ x) = o' (z≤th x)
 
+zeroth : forall {n} -> 1 ≤th succ n
+zeroth = os (z≤th _)
+
+<th⇒≤th : forall {x y} -> succ x ≤th y -> x ≤th y
+<th⇒≤th (os th) = o' th
+<th⇒≤th (o' th) = o' (<th⇒≤th th)
+
+op : forall {x y} -> succ x ≤th succ y -> x ≤th y
+op (os th) = th
+op (o' th) = <th⇒≤th th
+
+z≤th-unique : forall {n} (th th' : zero ≤th n) -> th == th'
+z≤th-unique oz oz = refl
+z≤th-unique (o' th) (o' th') = cong o' (z≤th-unique th th')
+
+osInj : forall {m n} {th th' : m ≤th n} -> os th == os th' -> th == th'
+osInj refl = refl
+o'Inj : forall {m n} {th th' : m ≤th n} -> o' th == o' th' -> th == th'
+o'Inj refl = refl
+
+_==th?_ : forall {m n} (th th' : m ≤th n) -> Dec (th == th')
+oz ==th? oz = yes refl
+os th ==th? os th' = mapDec (cong os) osInj (th ==th? th')
+os th ==th? o' th' = no \ ()
+o' th ==th? os th' = no \ ()
+o' th ==th? o' th' = mapDec (cong o') o'Inj (th ==th? th')
+
+_≤th?_ : forall x y -> Dec (x ≤th y)
+zero ≤th? y = yes (z≤th _)
+succ x ≤th? zero = no \ ()
+succ x ≤th? succ y = mapDec os op (x ≤th? y)
+
+_<th_ : (x y : Nat) -> Set
+x <th y = succ x ≤th y
+
+_<th?_ : forall x y -> Dec (x <th y)
+x <th? y = succ x ≤th? y
+
+1≤th-from-<th : forall {m n} -> m <th n -> 1 ≤th n
+1≤th-from-<th {m} {zero} ()
+1≤th-from-<th {zero} {succ n} th = zeroth
+1≤th-from-<th {succ m} {succ n} th = o' (1≤th-from-<th {m} {n} (op th))
+
+infix 6 #th_
+#th_ : forall {n} m {less : Auto (m <th? n)} -> 1 ≤th n
+#th_ {n} m {less} = 1≤th-from-<th (toWitness {X? = m <th? n} less)
+
+punchOut : forall {n} {i j : 1 ≤th succ n} -> i /= j -> 1 ≤th n
+punchOut {n} {os i} {os j} neq = Zero-elim (neq (cong os (z≤th-unique i j)))
+punchOut {n} {os i} {o' j} neq = j
+punchOut {zero} {o' ()} {j} neq
+punchOut {succ n} {o' i} {os j} neq = zeroth
+punchOut {succ n} {o' i} {o' j} neq = o' (punchOut (neq o cong o'))
+
+punchIn : forall {n} -> 1 ≤th succ n -> 1 ≤th n -> 1 ≤th succ n
+punchIn (os i) j = o' j
+punchIn (o' i) (os j) = zeroth
+punchIn (o' i) (o' j) = o' (punchIn i j)
+
+1≤th-split : forall {m} -> 1 ≤th succ m -> Sg _ \ n -> Sg _ \ o -> n +N o == m
+1≤th-split {m} (os i) = zero , m , refl
+1≤th-split {zero} (o' i) = zero , zero , refl
+1≤th-split {succ m} (o' i) = mapSg succ (mapSg id (cong succ)) (1≤th-split i)
+
 data Vec {a} (A : Set a) : Nat -> Set a where
   nil : Vec A zero
   _::_ : forall {n} (x : A) (xs : Vec A n) -> Vec A (succ n)
 
+_+V_ : forall {a A m n} -> Vec {a} A m -> Vec A n -> Vec A (m +N n)
+nil +V ys = ys
+(x :: xs) +V ys = x :: xs +V ys
+
 1≤th-index : forall {a A m} -> 1 ≤th m -> Vec {a} A m -> A
 1≤th-index (os th) (x :: xs) = x
 1≤th-index (o' th) (x :: xs) = 1≤th-index th xs
+
+1≤th-splitVec : forall {a A m} i (xs : Vec {a} A m) ->
+                let n , o , eq = 1≤th-split i in
+                Sg _ \ ys -> Sg _ \ zs -> subst (Vec A) eq (_+V_ {m = n} ys zs) == xs
+1≤th-splitVec (os i) xs = nil , xs , refl
+1≤th-splitVec (o' i) nil = nil , nil , refl
+1≤th-splitVec (o' i) (x :: xs) with 1≤th-split i | 1≤th-splitVec i xs
+1≤th-splitVec (o' i) (x :: .(ys +V zs))
+  | n , o , refl | ys , zs , refl = x :: ys , zs , refl
+
+1≤th-insertVec : forall {a A m} (i : 1 ≤th succ m) (x : A) (xs : Vec {a} A m) -> Vec A (succ m)
+--1≤th-insertVec i x xs with 1≤th-split i | 1≤th-splitVec i xs
+--... | n , o , refl | ys , zs , _ = subst (Vec _) (+N-succ n o) (ys +V x :: zs)
+1≤th-insertVec (os i) x xs = x :: xs
+1≤th-insertVec (o' i) x nil = x :: nil
+1≤th-insertVec (o' i) x (x' :: xs) = x' :: 1≤th-insertVec i x xs
+
+1≤th-removeVec : forall {a A m} -> 1 ≤th succ m -> Vec {a} A (succ m) -> Vec A m
+1≤th-removeVec (os i) (x :: xs) = xs
+1≤th-removeVec {m = zero} (o' ()) (x :: xs)
+1≤th-removeVec {m = succ m} (o' i) (x :: xs) = x :: 1≤th-removeVec i xs
+
+1≤th-index-punchIn-insertVec :
+  forall {a A m} (i : 1 ≤th succ m) (j : 1 ≤th m) (x : A) (xs : Vec {a} A m) ->
+  1≤th-index (punchIn i j) (1≤th-insertVec i x xs) == 1≤th-index j xs
+1≤th-index-punchIn-insertVec (os i) j x xs = refl
+1≤th-index-punchIn-insertVec (o' i) (os j) x (x' :: xs) = refl
+1≤th-index-punchIn-insertVec (o' i) (o' j) x (x' :: xs) =
+  1≤th-index-punchIn-insertVec i j x xs
+
+1≤th-index-insertVec : forall {a A m} (i : 1 ≤th succ m) (x : A) (xs : Vec {a} A m) ->
+                       1≤th-index i (1≤th-insertVec i x xs) == x
+1≤th-index-insertVec (os i) x xs = refl
+1≤th-index-insertVec (o' ()) x nil
+1≤th-index-insertVec (o' i) x (x' :: xs) = 1≤th-index-insertVec i x xs
+
+1≤th-index-/=-insertVec :
+  forall {a A m} {i j : 1 ≤th succ m}
+  (neq : i /= j) (x : A) (xs : Vec {a} A m) ->
+  1≤th-index j (1≤th-insertVec i x xs) == 1≤th-index (punchOut neq) xs
+1≤th-index-/=-insertVec {i = os i} {os j} neq x xs =
+  Zero-elim (neq (cong os (z≤th-unique i j)))
+1≤th-index-/=-insertVec {i = os i} {o' j} neq x xs = refl
+1≤th-index-/=-insertVec {i = o' ()} {j} neq x nil
+1≤th-index-/=-insertVec {i = o' i} {os j} neq x (x' :: xs) = refl
+1≤th-index-/=-insertVec {i = o' i} {o' j} neq x (x' :: xs) =
+  1≤th-index-/=-insertVec {i = i} {j} _ x xs
 
 thickenVec : forall {a A m n} -> m ≤th n -> Vec {a} A n -> Vec A m
 thickenVec oz nil = nil
@@ -658,6 +800,15 @@ vzip f (x :: xs) (y :: ys) = f x y :: vzip f xs ys
 1≤th-index-vzip (os i) f (x :: xs) (y :: ys) = refl
 1≤th-index-vzip (o' i) f (x :: xs) (y :: ys) = 1≤th-index-vzip i f xs ys
 
+1≤th-insertVec-vzip :
+  forall {a b c A B C n} (i : 1 ≤th succ n) f x y xs ys ->
+  1≤th-insertVec {c} {C} i (f x y) (vzip f xs ys) ==
+    vzip f (1≤th-insertVec {a} {A} i x xs) (1≤th-insertVec {b} {B} i y ys)
+1≤th-insertVec-vzip (os i) f x y xs ys = refl
+1≤th-insertVec-vzip (o' i) f x y nil nil = refl
+1≤th-insertVec-vzip (o' i) f x y (x' :: xs) (y' :: ys) =
+  cong (f x' y' ::_) (1≤th-insertVec-vzip i f x y xs ys)
+
 data VZip {a b r} {A : Set a} {B : Set b} (R : A -> B -> Set r)
             : forall {n} -> Vec A n -> Vec B n -> Set (a ⊔ b ⊔ r) where
   nil : VZip R nil nil
@@ -672,12 +823,51 @@ tailVZip : forall {a b r A B R n x xs y ys} ->
            VZip {a} {b} {r} {A} {B} R {succ n} (x :: xs) (y :: ys) -> VZip R xs ys
 tailVZip (r :: rs) = rs
 
+==VZip : forall {a A n} {xs ys : Vec {a} A n} -> xs == ys -> VZip _==_ xs ys
+==VZip {xs = nil} {nil} eq = nil
+==VZip {xs = x :: xs} {.x :: .xs} refl = refl :: ==VZip refl
+
+VZip== : forall {a A n} {xs ys : Vec {a} A n} -> VZip _==_ xs ys -> xs == ys
+VZip== nil = refl
+VZip== (refl :: eqs) = cong (_ ::_) (VZip== eqs)
+
 1≤th-indexVZip : forall {a b r A B R n xs ys} ->
                  (i : 1 ≤th n) ->
                  VZip {a} {b} {r} {A} {B} R {n} xs ys ->
                  R (1≤th-index i xs) (1≤th-index i ys)
 1≤th-indexVZip (os i) (r :: rs) = r
 1≤th-indexVZip (o' i) (r :: rs) = 1≤th-indexVZip i rs
+
+1≤th-insertVZip : forall {a b r A B R n x y xs ys} ->
+                  (i : 1 ≤th succ n) ->
+                  R x y -> VZip {a} {b} {r} {A} {B} R {n} xs ys ->
+                  VZip R (1≤th-insertVec i x xs) (1≤th-insertVec i y ys)
+1≤th-insertVZip (os i) r rs = r :: rs
+1≤th-insertVZip (o' i) r nil = r :: nil
+1≤th-insertVZip (o' i) r (r' :: rs) = r' :: 1≤th-insertVZip i r rs
+
+1≤th-removeVZip : forall {a b r A B R n xs ys} ->
+                  (i : 1 ≤th succ n) ->
+                  VZip {a} {b} {r} {A} {B} R {succ n} xs ys ->
+                  VZip R (1≤th-removeVec i xs) (1≤th-removeVec i ys)
+1≤th-removeVZip (os i) (r :: rs) = rs
+1≤th-removeVZip {n = zero} (o' ()) (r :: rs)
+1≤th-removeVZip {n = succ n} (o' i) (r :: rs) = r :: 1≤th-removeVZip i rs
+
+1≤th-removeVec-insertVec :
+  forall {a A m} i x (xs : Vec {a} A m) ->
+  VZip _==_ (1≤th-removeVec i (1≤th-insertVec i x xs)) xs
+1≤th-removeVec-insertVec (os i) x xs = ==VZip refl
+1≤th-removeVec-insertVec (o' ()) x nil
+1≤th-removeVec-insertVec (o' i) x (x' :: xs) = refl :: 1≤th-removeVec-insertVec i x xs
+
+is-1≤th-insertVec :
+  forall {a A n} i xs ->
+  Sg (Vec {a} A n) \ xs' -> VZip _==_ xs (1≤th-insertVec i (1≤th-index i xs) xs')
+is-1≤th-insertVec (os i) (x :: xs) = xs , ==VZip refl
+is-1≤th-insertVec {n = zero} (o' ()) (x :: xs)
+is-1≤th-insertVec {n = succ n} (o' i) (x :: xs) =
+  mapSg (x ::_) (refl ::_) (is-1≤th-insertVec i xs)
 
 module RelProp where
   data RelProp (n : Nat) : Set where
