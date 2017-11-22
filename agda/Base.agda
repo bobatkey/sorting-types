@@ -4,7 +4,7 @@ open import Agda.Primitive using (Level; lzero; lsuc; _⊔_) public
 
 data _==_ {l : Level}{A : Set l}(a : A) : A -> Set l where
   refl : a == a
-infix 0 _==_
+infix 3 _==_
 
 {-# BUILTIN EQUALITY _==_ #-}
 
