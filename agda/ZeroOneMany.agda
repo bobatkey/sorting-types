@@ -286,6 +286,13 @@ open MeetSemilatticeSemiring 01ωMeetSemilatticeSemiring
   r 1# {ω#} ()
   r ω# {y} ()
 
+1#-sum : forall x y -> x + y == 1# -> x == 1# × y == 0# ⊎ x == 0# × y == 1#
+1#-sum 0# y eq = inr (refl , eq)
+1#-sum 1# 0# eq = inl (refl , refl)
+1#-sum 1# 1# ()
+1#-sum 1# ω# ()
+1#-sum ω# y ()
+
 {-+}
 open import Quantified 01ωSetoid 01ωMeetSemilatticeSemiring
 
