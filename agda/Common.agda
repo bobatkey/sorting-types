@@ -17,6 +17,15 @@ case x return B of f = f x
 case_of_ : forall {a b} {A : Set a} {B : Set b} (x : A) -> (A -> B) -> B
 case x of f = f x
 
+infixr 1 _=[_]=_
+infixr 2 _QED
+
+_=[_]=_ : forall {a} {A : Set a} (x : A) {y z} -> x == y -> y == z -> x == z
+x =[ xy ]= yz = trans xy yz
+
+_QED : forall {a} {A : Set a} (x : A) -> x == x
+x QED = refl
+
 record Lift {a l} (A : Set a) : Set (a ⊔ l) where
   constructor lift
   field
@@ -63,6 +72,14 @@ _-$_ = uncurryi
 record One : Set where
   constructor <>
 open One public
+
+record Graph {a b} {A : Set a} {B : A -> Set b} (f : (x : A) -> B x) (x : A) (y : B x) : Set (a ⊔ b) where
+  constructor ingraph
+  field
+    eq : f x == y
+
+inspect : forall {a b} {A : Set a} {B : A -> Set b} (f : (x : A) -> B x) (x : A) -> Graph f x (f x)
+inspect f x = ingraph refl
 
 data Two : Set where
   tt ff : Two
@@ -127,6 +144,11 @@ data _⊎_ {a b} (A : Set a) (B : Set b) : Set (a ⊔ b) where
   inl : (a : A) -> A ⊎ B
   inr : (b : B) -> A ⊎ B
 
+map⊎ : forall {a a' b b'} {A : Set a} {A' : Set a'} {B : Set b} {B' : Set b'} ->
+       (A -> A') -> (B -> B') -> A ⊎ B -> A' ⊎ B'
+map⊎ f g (inl a) = inl (f a)
+map⊎ f g (inr b) = inr (g b)
+
 data Dec {x} (X : Set x) : Set x where
   yes : (p : X) -> Dec X
   no : (np : X -> Zero) -> Dec X
@@ -182,6 +204,7 @@ data Nat : Set where
 
 {-# BUILTIN NATURAL Nat #-}
 
+infixr 6 _+N_
 _+N_ : Nat -> Nat -> Nat
 zero   +N n = n
 succ m +N n = succ (m +N n)
@@ -653,6 +676,10 @@ infix 6 #th_
 #th_ : forall {n} m {less : Auto (m <th? n)} -> 1 ≤th n
 #th_ {n} m {less} = 1≤th-from-<th (toWitness {X? = m <th? n} less)
 
+1≤thToNat : forall {m} -> 1 ≤th m -> Nat
+1≤thToNat (os i) = zero
+1≤thToNat (o' i) = succ (1≤thToNat i)
+
 punchOut : forall {n} {i j : 1 ≤th succ n} -> i /= j -> 1 ≤th n
 punchOut {n} {os i} {os j} neq = Zero-elim (neq (cong os (z≤th-unique i j)))
 punchOut {n} {os i} {o' j} neq = j
@@ -670,6 +697,55 @@ punchIn (o' i) (o' j) = o' (punchIn i j)
 1≤th-split {zero} (o' i) = zero , zero , refl
 1≤th-split {succ m} (o' i) = mapSg succ (mapSg id (cong succ)) (1≤th-split i)
 
+1≤th-part : forall m {n} -> 1 ≤th m +N n -> 1 ≤th m ⊎ 1 ≤th n
+1≤th-part zero i = inr i
+1≤th-part (succ m) (os i) = inl zeroth
+1≤th-part (succ m) (o' i) = map⊎ o' id (1≤th-part m i)
+
+1≤th-leftPart : forall {m} n -> 1 ≤th m -> 1 ≤th m +N n
+1≤th-leftPart n (os i) = zeroth
+1≤th-leftPart n (o' i) = o' (1≤th-leftPart n i)
+
+1≤th-rightPart : forall m {n} -> 1 ≤th n -> 1 ≤th m +N n
+1≤th-rightPart zero i = i
+1≤th-rightPart (succ m) i = o' (1≤th-rightPart m i)
+
+1≤th-join : forall m {n} -> 1 ≤th m ⊎ 1 ≤th n -> 1 ≤th m +N n
+1≤th-join m (inl i) = 1≤th-leftPart _ i
+1≤th-join m (inr i) = 1≤th-rightPart m i
+
+1≤th-part-toNat :
+  forall m {n} (i : 1 ≤th m +N n) ->
+  case 1≤th-part m i of \
+  { (inl jm) -> 1≤thToNat i == 1≤thToNat jm
+  ; (inr jn) -> 1≤thToNat i == m +N 1≤thToNat jn
+  }
+1≤th-part-toNat zero i = refl
+1≤th-part-toNat (succ m) (os i) = refl
+1≤th-part-toNat (succ m) (o' i) with 1≤th-part m i | 1≤th-part-toNat m i
+1≤th-part-toNat (succ m) (o' i) | inl _ | r = cong succ r
+1≤th-part-toNat (succ m) (o' i) | inr _ | r = cong succ r
+
+punchOutN : forall m {n} (i : 1 ≤th m +N succ n) -> 1≤thToNat i /= m -> 1 ≤th m +N n
+punchOutN zero (os i) neq = Zero-elim (neq refl)
+punchOutN zero (o' i) neq = i
+punchOutN (succ m) (os i) neq = zeroth
+punchOutN (succ m) (o' i) neq = o' (punchOutN m i (neq o cong succ))
+--punchOutN m i neq with 1≤th-part m i | 1≤th-part-toNat m i
+--... | inl jm | _ = 1≤th-leftPart _ jm
+--... | inr (os _) | eq rewrite +N-zero m = Zero-elim (neq eq)
+--... | inr (o' jn) | _ = 1≤th-rightPart m jn
+
+punchInNMany : forall {m} l n -> (i : 1 ≤th l +N m) -> 1 ≤th l +N n +N m
+punchInNMany l n i = 1≤th-join l (map⊎ id (1≤th-rightPart n) (1≤th-part l i))
+
+--punchOutN-toNat :
+--  punchOutN m i neq ==
+--    case 1≤th-part m i of \
+--    { (inl )
+--    ;
+--    }
+
 data Vec {a} (A : Set a) : Nat -> Set a where
   nil : Vec A zero
   _::_ : forall {n} (x : A) (xs : Vec A n) -> Vec A (succ n)
@@ -677,6 +753,24 @@ data Vec {a} (A : Set a) : Nat -> Set a where
 _+V_ : forall {a A m n} -> Vec {a} A m -> Vec A n -> Vec A (m +N n)
 nil +V ys = ys
 (x :: xs) +V ys = x :: xs +V ys
+
+headVec : forall {a A n} -> Vec {a} A (succ n) -> A
+headVec (x :: xs) = x
+
+tailVec : forall {a A n} -> Vec {a} A (succ n) -> Vec A n
+tailVec (x :: xs) = xs
+
+takeVec : forall {a A} m {n} -> Vec {a} A (m +N n) -> Vec A m
+takeVec zero xs = nil
+takeVec (succ m) (x :: xs) = x :: takeVec m xs
+
+dropVec : forall {a A} m {n} -> Vec {a} A (m +N n) -> Vec A n
+dropVec zero xs = xs
+dropVec (succ m) (x :: xs) = dropVec m xs
+
+1≤th-tabulate : forall {a A m} -> (1 ≤th m -> A) -> Vec {a} A m
+1≤th-tabulate {m = zero} f = nil
+1≤th-tabulate {m = succ m} f = f zeroth :: 1≤th-tabulate {m = m} (f o o')
 
 1≤th-index : forall {a A m} -> 1 ≤th m -> Vec {a} A m -> A
 1≤th-index (os th) (x :: xs) = x
@@ -728,6 +822,105 @@ nil +V ys = ys
 1≤th-index-/=-insertVec {i = o' i} {os j} neq x (x' :: xs) = refl
 1≤th-index-/=-insertVec {i = o' i} {o' j} neq x (x' :: xs) =
   1≤th-index-/=-insertVec {i = i} {j} _ x xs
+
+1≤th-index-+ :
+  forall {a A m n} i (xs : Vec {a} A m) y (zs : Vec A n) ->
+  1≤thToNat i == m -> 1≤th-index i (xs +V y :: zs) == y
+1≤th-index-+ (os i) nil y zs eq = refl
+1≤th-index-+ (o' i) nil y zs ()
+1≤th-index-+ (os i) (x :: xs) y zs ()
+1≤th-index-+ (o' i) (x :: xs) y zs eq = 1≤th-index-+ i xs y zs (succInj eq)
+
+1≤th-index-part-l :
+  forall {a A m n j} (i : 1 ≤th m +N n) (xs : Vec {a} A m) (ys : Vec A n) ->
+  1≤th-part m i == inl j -> 1≤th-index j xs == 1≤th-index i (xs +V ys)
+1≤th-index-part-l i nil ys ()
+1≤th-index-part-l (os i) (x :: xs) ys refl = refl
+1≤th-index-part-l {m = succ m} (o' i) (x :: xs) ys eq
+  with 1≤th-part m i | inspect (1≤th-part m) i
+1≤th-index-part-l {m = succ m} (o' i) (x :: xs) ys refl | inl j | ingraph eq =
+  1≤th-index-part-l i xs ys eq
+1≤th-index-part-l {m = succ m} (o' i) (x :: xs) ys () | inr _ | _
+
+1≤th-index-part-r :
+  forall {a A m n j} (i : 1 ≤th m +N n) (xs : Vec {a} A m) (ys : Vec A n) ->
+  1≤th-part m i == inr j -> 1≤th-index j ys == 1≤th-index i (xs +V ys)
+1≤th-index-part-r i nil ys refl = refl
+1≤th-index-part-r (os i) (x :: xs) ys ()
+1≤th-index-part-r {m = succ m} (o' i) (x :: xs) ys eq
+  with 1≤th-part m i | inspect (1≤th-part m) i
+1≤th-index-part-r {m = succ m} (o' i) (x :: xs) ys () | inl _ | _
+1≤th-index-part-r {m = succ m} (o' i) (x :: xs) ys refl | inr j | ingraph eq =
+  1≤th-index-part-r i xs ys eq
+
+1≤th-index-leftPart :
+  forall {a A m n} (i : 1 ≤th m) (xs : Vec {a} A m) (ys : Vec A n) ->
+  1≤th-index (1≤th-leftPart n i) (xs +V ys) == 1≤th-index i xs
+1≤th-index-leftPart (os i) (x :: xs) ys = refl
+1≤th-index-leftPart (o' i) (x :: xs) ys = 1≤th-index-leftPart i xs ys
+
+1≤th-index-rightPart :
+  forall {a A m n} (i : 1 ≤th n) (xs : Vec {a} A m) (ys : Vec A n) ->
+  1≤th-index (1≤th-rightPart m i) (xs +V ys) == 1≤th-index i ys
+1≤th-index-rightPart i nil ys = refl
+1≤th-index-rightPart i (x :: xs) ys = 1≤th-index-rightPart i xs ys
+
+1≤th-index-punchInNMany :
+  forall {a A m l n} (ls : Vec A l) (ns : Vec A n) (ms : Vec {a} A m) i ->
+  1≤th-index (punchInNMany l n i) (ls +V ns +V ms) == 1≤th-index i (ls +V ms)
+1≤th-index-punchInNMany {l = l} {n} ls ns ms i
+  with 1≤th-part l i | inspect (1≤th-part l) i
+... | inl j | ingraph eq = trans (1≤th-index-leftPart j ls (ns +V ms))
+                                 (1≤th-index-part-l i ls ms eq)
+... | inr j | ingraph eq =
+  trans (1≤th-index-rightPart (1≤th-rightPart n j) ls (ns +V ms))
+        (trans (1≤th-index-rightPart j ns ms)
+               (1≤th-index-part-r i ls ms eq))
+
+1≤th-index-== :
+  forall {a A m} i j (xs : Vec {a} A m) ->
+  1≤thToNat i == 1≤thToNat j -> 1≤th-index i xs == 1≤th-index j xs
+1≤th-index-== (os i) (os j) (x :: xs) eq = refl
+1≤th-index-== (os i) (o' j) xs ()
+1≤th-index-== (o' i) (os j) xs ()
+1≤th-index-== (o' i) (o' j) (x :: xs) eq = 1≤th-index-== i j xs (succInj eq)
+
+1≤th-index-==l :
+  forall {a A m n} i j (xs : Vec {a} A m) (ys : Vec A n) ->
+  1≤thToNat i == 1≤thToNat j -> 1≤th-index i xs == 1≤th-index j (xs +V ys)
+1≤th-index-==l (os i) (os j) (x :: xs) ys eq = refl
+1≤th-index-==l (os i) (o' j) (x :: xs) ys ()
+1≤th-index-==l (o' i) (os j) (x :: xs) ys ()
+1≤th-index-==l (o' i) (o' j) (x :: xs) ys eq = 1≤th-index-==l i j xs ys (succInj eq)
+
+1≤th-index-==r :
+  forall {a A m n} i j (xs : Vec {a} A m) (ys : Vec A n) ->
+  m +N 1≤thToNat i == 1≤thToNat j -> 1≤th-index i ys == 1≤th-index j (xs +V ys)
+1≤th-index-==r i j nil ys eq = 1≤th-index-== i j ys eq
+1≤th-index-==r i (os j) (x :: xs) ys ()
+1≤th-index-==r i (o' j) (x :: xs) ys eq = 1≤th-index-==r i j xs ys (succInj eq)
+
+1≤th-index-punchOutN :
+  forall {a A m n} i (neq : 1≤thToNat i /= m)
+  (xs : Vec {a} A m) y (zs : Vec A n) ->
+  1≤th-index (punchOutN m i neq) (xs +V zs) == 1≤th-index i (xs +V y :: zs)
+1≤th-index-punchOutN (os i) neq nil y zs = Zero-elim (neq refl)
+1≤th-index-punchOutN (o' i) neq nil y zs = refl
+1≤th-index-punchOutN (os i) neq (x :: xs) y zs = refl
+1≤th-index-punchOutN (o' i) neq (x :: xs) y zs =
+  1≤th-index-punchOutN i (neq o cong succ) xs y zs
+--1≤th-index-punchOutN {m = m} {n} i neq xs y zs with 1≤th-part m i | 1≤th-part-toNat m i
+--... | inl jm | eq rewrite 1≤th-index-leftPart jm xs zs =
+--  1≤th-index-==l jm i xs (y :: zs) (sym eq)
+--... | inr (os jn) | eq rewrite +N-zero m = Zero-elim (neq eq)
+--... | inr (o' jn) | eq rewrite 1≤th-index-rightPart jn xs zs
+--                             | +N-succ m (1≤thToNat jn) =
+--  {!1≤th-index-==r jn (subst (1 ≤th_) (+N-succ m n) i) xs!}
+
+1≤th->-:: : forall {a} {A : Set a} {m} ->
+            A -> (1 ≤th m -> A) -> 1 ≤th succ m -> A
+1≤th->-:: x f (os i) = x
+1≤th->-:: x f (o' i) = f i
 
 thickenVec : forall {a A m n} -> m ≤th n -> Vec {a} A n -> Vec A m
 thickenVec oz nil = nil
@@ -823,6 +1016,16 @@ tailVZip : forall {a b r A B R n x xs y ys} ->
            VZip {a} {b} {r} {A} {B} R {succ n} (x :: xs) (y :: ys) -> VZip R xs ys
 tailVZip (r :: rs) = rs
 
+takeVZip : forall {a b r A B R m n xsn ysn} (xsm : Vec A m) (ysm : Vec B m) ->
+           VZip {a} {b} {r} {A} {B} R {m +N n} (xsm +V xsn) (ysm +V ysn) -> VZip R xsm ysm
+takeVZip nil nil rs = nil
+takeVZip (x :: xsm) (y :: ysm) (r :: rs) = r :: takeVZip xsm ysm rs
+
+dropVZip : forall {a b r A B R m n xsn ysn} (xsm : Vec A m) (ysm : Vec B m) ->
+           VZip {a} {b} {r} {A} {B} R {m +N n} (xsm +V xsn) (ysm +V ysn) -> VZip R xsn ysn
+dropVZip nil nil rs = rs
+dropVZip (x :: xsm) (y :: ysm) (r :: rs) = dropVZip xsm ysm rs
+
 ==VZip : forall {a A n} {xs ys : Vec {a} A n} -> xs == ys -> VZip _==_ xs ys
 ==VZip {xs = nil} {nil} eq = nil
 ==VZip {xs = x :: xs} {.x :: .xs} refl = refl :: ==VZip refl
@@ -830,6 +1033,40 @@ tailVZip (r :: rs) = rs
 VZip== : forall {a A n} {xs ys : Vec {a} A n} -> VZip _==_ xs ys -> xs == ys
 VZip== nil = refl
 VZip== (refl :: eqs) = cong (_ ::_) (VZip== eqs)
+
+headTailVec== : forall {a A n} (xs : Vec {a} A (succ n)) ->
+                VZip _==_ (headVec xs :: tailVec xs) xs
+headTailVec== (x :: xs) = ==VZip refl
+
+takeDropVec== : forall {a A} m {n} (xs : Vec {a} A (m +N n)) ->
+                VZip _==_ (takeVec m xs +V dropVec m xs) xs
+takeDropVec== zero xs = ==VZip refl
+takeDropVec== (succ m) (x :: xs) = refl :: takeDropVec== m xs
+
+1≤th-tabulate-o : forall {a b A B m} (f : A -> B) (g : 1 ≤th m -> A) ->
+                  VZip _==_ (1≤th-tabulate {b} (f o g)) (vmap f (1≤th-tabulate {a} g))
+1≤th-tabulate-o {m = zero} f g = nil
+1≤th-tabulate-o {m = succ m} f g = refl :: 1≤th-tabulate-o f (g o o')
+
+vmap-+V : forall {a b A B m n} (f : A -> B)
+          (xsm : Vec {a} A m) (xsn : Vec A n) ->
+          VZip (_==_ {b} {B}) (vmap f (xsm +V xsn)) (vmap f xsm +V vmap f xsn)
+vmap-+V f nil xsn = ==VZip refl
+vmap-+V f (x :: xsm) xsn = refl :: vmap-+V f xsm xsn
+
+vzip-+V : forall {a b c A B C m n} (f : A -> B -> C)
+          (xsm : Vec {a} A m) (ysm : Vec {b} B m) xsn (ysn : Vec B n) ->
+          VZip (_==_ {c} {C}) (vzip f (xsm +V xsn) (ysm +V ysn))
+                              (vzip f xsm ysm +V vzip f xsn ysn)
+vzip-+V f nil nil xsn ysn = ==VZip refl
+vzip-+V f (x :: xsm) (y :: ysm) xsn ysn = refl :: vzip-+V f xsm ysm xsn ysn
+
+infixr 5 _+VZip_
+_+VZip_ : forall {a b r A B R m n xsm ysm xsn ysn} ->
+          VZip R {n = m} xsm ysm -> VZip R {n = n} xsn ysn ->
+          VZip {a} {b} {r} {A} {B} R (xsm +V xsn) (ysm +V ysn)
+nil +VZip rsn = rsn
+(r :: rsm) +VZip rsn = r :: rsm +VZip rsn
 
 1≤th-indexVZip : forall {a b r A B R n xs ys} ->
                  (i : 1 ≤th n) ->
@@ -868,6 +1105,9 @@ is-1≤th-insertVec (os i) (x :: xs) = xs , ==VZip refl
 is-1≤th-insertVec {n = zero} (o' ()) (x :: xs)
 is-1≤th-insertVec {n = succ n} (o' i) (x :: xs) =
   mapSg (x ::_) (refl ::_) (is-1≤th-insertVec i xs)
+
+--punchOutNVZip : forall {a b r A B R m n xs ys}
+--                VZip R xs ys -> VZip R (punchOutN m)
 
 module RelProp where
   data RelProp (n : Nat) : Set where
@@ -982,11 +1222,3 @@ IfJust-mapMaybe P f nothing x = x
 
 nothing/=just : forall {a A x} -> nothing {a} {A} == just x -> Zero
 nothing/=just ()
-
-record Graph {a b} {A : Set a} {B : A -> Set b} (f : (x : A) -> B x) (x : A) (y : B x) : Set (a ⊔ b) where
-  constructor ingraph
-  field
-    eq : f x == y
-
-inspect : forall {a b} {A : Set a} {B : A -> Set b} (f : (x : A) -> B x) (x : A) -> Graph f x (f x)
-inspect f x = ingraph refl
