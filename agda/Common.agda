@@ -768,6 +768,10 @@ dropVec : forall {a A} m {n} -> Vec {a} A (m +N n) -> Vec A n
 dropVec zero xs = xs
 dropVec (succ m) (x :: xs) = dropVec m xs
 
+replicateVec : forall {a A} n -> A -> Vec {a} A n
+replicateVec zero x = nil
+replicateVec (succ n) x = x :: replicateVec n x
+
 1≤th-tabulate : forall {a A m} -> (1 ≤th m -> A) -> Vec {a} A m
 1≤th-tabulate {m = zero} f = nil
 1≤th-tabulate {m = succ m} f = f zeroth :: 1≤th-tabulate {m = m} (f o o')
@@ -1002,6 +1006,11 @@ vzip f (x :: xs) (y :: ys) = f x y :: vzip f xs ys
 1≤th-insertVec-vzip (o' i) f x y (x' :: xs) (y' :: ys) =
   cong (f x' y' ::_) (1≤th-insertVec-vzip i f x y xs ys)
 
+1≤th-index-replicateVec :
+  forall {a A n} (i : 1 ≤th n) x -> 1≤th-index i (replicateVec {a} {A} n x) == x
+1≤th-index-replicateVec (os i) x = refl
+1≤th-index-replicateVec (o' i) x = 1≤th-index-replicateVec i x
+
 data VZip {a b r} {A : Set a} {B : Set b} (R : A -> B -> Set r)
             : forall {n} -> Vec A n -> Vec B n -> Set (a ⊔ b ⊔ r) where
   nil : VZip R nil nil
@@ -1068,6 +1077,18 @@ _+VZip_ : forall {a b r A B R m n xsm ysm xsn ysn} ->
 nil +VZip rsn = rsn
 (r :: rsm) +VZip rsn = r :: rsm +VZip rsn
 
+replicateVZip :
+  forall {a b r A B R} n {x y} -> R x y ->
+  VZip {a} {b} {r} {A} {B} R {n} (replicateVec n x) (replicateVec n y)
+replicateVZip zero r = nil
+replicateVZip (succ n) r = r :: replicateVZip n r
+
+vmap-replicateVec :
+  forall {a b A B} f n x ->
+  VZip _==_ (vmap {a} {b} {A} {B} f (replicateVec n x)) (replicateVec n (f x))
+vmap-replicateVec f zero x = nil
+vmap-replicateVec f (succ n) x = refl :: vmap-replicateVec f n x
+
 1≤th-indexVZip : forall {a b r A B R n xs ys} ->
                  (i : 1 ≤th n) ->
                  VZip {a} {b} {r} {A} {B} R {n} xs ys ->
@@ -1097,6 +1118,20 @@ nil +VZip rsn = rsn
 1≤th-removeVec-insertVec (os i) x xs = ==VZip refl
 1≤th-removeVec-insertVec (o' ()) x nil
 1≤th-removeVec-insertVec (o' i) x (x' :: xs) = refl :: 1≤th-removeVec-insertVec i x xs
+
+1≤th-insertVec-replicateVec :
+  forall {a A n} (i : 1 ≤th succ n) x ->
+  VZip _==_ (1≤th-insertVec i x (replicateVec {a} {A} n x)) (replicateVec (succ n) x)
+1≤th-insertVec-replicateVec (os i) x = ==VZip refl
+1≤th-insertVec-replicateVec {n = zero} (o' i) x = ==VZip refl
+1≤th-insertVec-replicateVec {n = succ n} (o' i) x =
+  refl :: 1≤th-insertVec-replicateVec i x
+
+replicateVec-+V :
+  forall {a A} l m x ->
+  VZip _==_ (replicateVec {a} {A} (l +N m) x) (replicateVec l x +V replicateVec m x)
+replicateVec-+V zero m x = ==VZip refl
+replicateVec-+V (succ l) m x = refl :: replicateVec-+V l m x
 
 is-1≤th-insertVec :
   forall {a A n} i xs ->

@@ -38,12 +38,8 @@ _≈D_ = VZip _==_
 ≈D-trans nil nil = nil
 ≈D-trans (r :: eq) (r' :: eq') = trans r r' :: ≈D-trans eq eq'
 
-constQCtx : forall n -> C -> QCtx n
-constQCtx zero rho = nil
-constQCtx (succ n) rho = rho :: constQCtx n rho
-
 varQCtx : forall {n} -> 1 ≤th n -> C -> QCtx n
-varQCtx (os th) rho = rho :: constQCtx _ e0
+varQCtx (os th) rho = rho :: replicateVec _ e0
 varQCtx (o' th) rho = e0 :: varQCtx th rho
 
 infix 4 _≈G_ _≤G_
@@ -101,49 +97,36 @@ G ≤G-QED = ≤G-refl G
 1≤th-index-varQCtx (os i) = refl
 1≤th-index-varQCtx (o' i) = 1≤th-index-varQCtx i
 
-1≤th-index-constQCtx :
-  forall {n rho} (i : 1 ≤th n) -> 1≤th-index i (constQCtx n rho) == rho
-1≤th-index-constQCtx (os i) = refl
-1≤th-index-constQCtx (o' i) = 1≤th-index-constQCtx i
-
 1≤th-index-/=-varQCtx :
-  forall {n rho} {i i' : 1 ≤th n} ->
-  i' /= i -> 1≤th-index i' (varQCtx i rho) == e0
-1≤th-index-/=-varQCtx {i = os i} {os i'} neq =
+  forall {n} {i i' : 1 ≤th n} ->
+  i' /= i -> (rho : C) -> 1≤th-index i' (varQCtx i rho) == e0
+1≤th-index-/=-varQCtx {i = os i} {os i'} neq rho =
   Zero-elim (neq (cong os (z≤th-unique i' i)))
-1≤th-index-/=-varQCtx {i = os i} {o' i'} neq = 1≤th-index-constQCtx i'
-1≤th-index-/=-varQCtx {i = o' i} {os i'} neq = refl
-1≤th-index-/=-varQCtx {i = o' i} {o' i'} neq =
-  1≤th-index-/=-varQCtx (neq o cong o')
-
-1≤th-insertVec-constQCtx :
-  forall {n} (i : 1 ≤th succ n) rho ->
-  1≤th-insertVec i rho (constQCtx n rho) ≈G constQCtx (succ n) rho
-1≤th-insertVec-constQCtx (os i) rho = ≈G-refl _
-1≤th-insertVec-constQCtx {zero} (o' i) rho = ≈G-refl _
-1≤th-insertVec-constQCtx {succ n} (o' i) rho =
-  refl :: 1≤th-insertVec-constQCtx i rho
+1≤th-index-/=-varQCtx {i = os i} {o' i'} neq rho = 1≤th-index-replicateVec i' e0
+1≤th-index-/=-varQCtx {i = o' i} {os i'} neq rho = refl
+1≤th-index-/=-varQCtx {i = o' i} {o' i'} neq rho =
+  1≤th-index-/=-varQCtx (neq o cong o') rho
 
 1≤th-insertVec-varQCtx :
   forall {n} (i : 1 ≤th succ n) (j : 1 ≤th n) rho ->
   1≤th-insertVec i e0 (varQCtx j rho) ≈G varQCtx (punchIn i j) rho
 1≤th-insertVec-varQCtx (os i) j rho = ≈G-refl _
 1≤th-insertVec-varQCtx (o' i) (os j) rho =
-  refl :: 1≤th-insertVec-constQCtx i e0
+  refl :: 1≤th-insertVec-replicateVec i e0
 1≤th-insertVec-varQCtx (o' i) (o' j) rho =
   refl :: 1≤th-insertVec-varQCtx i j rho
 
-un1≤th-insertVec-constQCtx :
+un1≤th-insertVec-replicateVec :
   forall {n} i rho rho' G ->
-  1≤th-insertVec i rho G ≤G constQCtx (succ n) rho' -> G ≤G constQCtx n rho'
-un1≤th-insertVec-constQCtx (os i) rho rho' G (le :: sub) = sub
-un1≤th-insertVec-constQCtx (o' i) rho rho' nil sub = nil
-un1≤th-insertVec-constQCtx (o' i) rho rho' (p :: G) (le :: sub) =
-  le :: un1≤th-insertVec-constQCtx i rho rho' G sub
+  1≤th-insertVec i rho G ≤G replicateVec (succ n) rho' -> G ≤G replicateVec n rho'
+un1≤th-insertVec-replicateVec (os i) rho rho' G (le :: sub) = sub
+un1≤th-insertVec-replicateVec (o' i) rho rho' nil sub = nil
+un1≤th-insertVec-replicateVec (o' i) rho rho' (p :: G) (le :: sub) =
+  le :: un1≤th-insertVec-replicateVec i rho rho' G sub
 
 un1≤th-insertVec-varQCtx :
   forall {n} i rho G ->
-  1≤th-insertVec i rho G ≤G varQCtx i rho -> G ≤G constQCtx n e0
+  1≤th-insertVec i rho G ≤G varQCtx i rho -> G ≤G replicateVec n e0
 un1≤th-insertVec-varQCtx (os i) rho G (_ :: sub) = sub
 un1≤th-insertVec-varQCtx (o' i) rho nil sub = nil
 un1≤th-insertVec-varQCtx (o' i) rho (p :: G) (le :: sub) =
@@ -157,7 +140,7 @@ un1≤th-insertVec-/=-varQCtx {i = os i} {os j} neq rho G (le :: sub) =
 un1≤th-insertVec-/=-varQCtx {i = os i} {o' j} neq rho G (le :: sub) = sub
 un1≤th-insertVec-/=-varQCtx {i = o' ()} {j} neq rho nil sub
 un1≤th-insertVec-/=-varQCtx {i = o' i} {os j} neq rho (p :: G) (le :: sub) =
-  le :: un1≤th-insertVec-constQCtx i rho e0 G sub
+  le :: un1≤th-insertVec-replicateVec i rho e0 G sub
 un1≤th-insertVec-/=-varQCtx {i = o' i} {o' j} neq rho (p :: G) (le :: sub) =
   le :: un1≤th-insertVec-/=-varQCtx (neq o cong o') rho G sub
 
@@ -171,42 +154,38 @@ un1≤th-insertVec-/=-varQCtx {i = o' i} {o' j} neq rho (p :: G) (le :: sub) =
 1≤th-insertVec-/=-varQCtx-miss {i = o' i} {o' j} neq rho nil (le :: sub) = le
 1≤th-insertVec-/=-varQCtx-miss {i = o' i} {os j} neq rho (p :: G) (le :: sub)
   with 1≤th-indexVZip i sub
-... | r rewrite 1≤th-index-insertVec i rho G | 1≤th-index-constQCtx {rho = e0} i = r
+... | r rewrite 1≤th-index-insertVec i rho G | 1≤th-index-replicateVec i e0 = r
 1≤th-insertVec-/=-varQCtx-miss {i = o' i} {o' j} neq rho (p :: G) (le :: sub) =
   1≤th-insertVec-/=-varQCtx-miss (neq o cong o') rho G sub
-
-constQCtx-+V : forall l m rho -> constQCtx (l +N m) rho ≈G constQCtx l rho +V constQCtx m rho
-constQCtx-+V zero m rho = ≈G-refl _
-constQCtx-+V (succ l) m rho = refl :: constQCtx-+V l m rho
 
 varQCtx-part :
   forall l {m} (th : 1 ≤th l +N m) rho ->
   varQCtx th rho ≈G
     case 1≤th-part l th of \
-    { (inl thl) -> varQCtx thl rho +V constQCtx m e0
-    ; (inr thm) -> constQCtx l e0 +V varQCtx thm rho
+    { (inl thl) -> varQCtx thl rho +V replicateVec m e0
+    ; (inr thm) -> replicateVec l e0 +V varQCtx thm rho
     }
 varQCtx-part zero th rho = ≈G-refl _
-varQCtx-part (succ l) (os th) rho = refl :: constQCtx-+V l _ e0
+varQCtx-part (succ l) (os th) rho = refl :: replicateVec-+V l _ e0
 varQCtx-part (succ l) (o' th) rho with 1≤th-part l th | varQCtx-part l th rho
 varQCtx-part (succ l) (o' th) rho | inl thl | r = refl :: r
 varQCtx-part (succ l) (o' th) rho | inr thm | r = refl :: r
 
 varQCtx-leftPart :
   forall {m} n (th : 1 ≤th m) rho ->
-  varQCtx (1≤th-leftPart n th) rho ≈G varQCtx th rho +V constQCtx n e0
-varQCtx-leftPart {succ m} n (os th) rho = refl :: constQCtx-+V m n e0
+  varQCtx (1≤th-leftPart n th) rho ≈G varQCtx th rho +V replicateVec n e0
+varQCtx-leftPart {succ m} n (os th) rho = refl :: replicateVec-+V m n e0
 varQCtx-leftPart {succ m} n (o' th) rho = refl :: varQCtx-leftPart n th rho
 
 varQCtx-rightPart :
   forall m {n} (th : 1 ≤th n) rho ->
-  varQCtx (1≤th-rightPart m th) rho ≈G constQCtx m e0 +V varQCtx th rho
+  varQCtx (1≤th-rightPart m th) rho ≈G replicateVec m e0 +V varQCtx th rho
 varQCtx-rightPart zero th rho = ≈G-refl _
 varQCtx-rightPart (succ m) th rho = refl :: varQCtx-rightPart m th rho
 
 varQCtx-3parts :
   forall m {n} (th : 1 ≤th m +N succ n) rho -> 1≤thToNat th == m ->
-  varQCtx th rho ≈G constQCtx m e0 +V rho :: constQCtx n e0
+  varQCtx th rho ≈G replicateVec m e0 +V rho :: replicateVec n e0
 varQCtx-3parts zero (os th) rho refl = ≈G-refl _
 varQCtx-3parts zero (o' th) rho ()
 varQCtx-3parts (succ m) (os th) rho ()
@@ -216,8 +195,8 @@ varQCtx-3parts (succ m) (o' th) rho eq = refl :: varQCtx-3parts m th rho (succIn
 --  forall l {m} (th : 1 ≤th l +N m) (neq : 1≤thToNat th /= l) ->
 --  varQCtx (punchOut l th neq) rho ≈G
 --    case 1≤th-part l th of \
---    { (inl thl) -> varQCtx thl rho +V constQCtx m e0
---    ; (inr thm) -> constQCtx
+--    { (inl thl) -> varQCtx thl rho +V replicateVec m e0
+--    ; (inr thm) -> replicateVec
 --    }
 
 infixl 6 _+G_ _+G-mono_ _+G-cong_
@@ -249,21 +228,21 @@ _*G-cong_ : forall {n rho rho'} {G G' : QCtx n} ->
 eq *G-cong nil = nil
 eq *G-cong (eqG :: eqs) = (eq *-cong eqG) :: eq *G-cong eqs
 
-+G-identity : (forall {n} G -> constQCtx n e0 +G G ≈G G)
-            × (forall {n} G -> G +G constQCtx n e0 ≈G G)
++G-identity : (forall {n} G -> replicateVec n e0 +G G ≈G G)
+            × (forall {n} G -> G +G replicateVec n e0 ≈G G)
 fst +G-identity = go
   where
-  go : forall {n} G -> constQCtx n e0 +G G ≈G G
+  go : forall {n} G -> replicateVec n e0 +G G ≈G G
   go nil = nil
   go (p :: G) = fst +-identity p :: go G
 snd +G-identity = go
   where
-  go : forall {n} G -> G +G constQCtx n e0 ≈G G
+  go : forall {n} G -> G +G replicateVec n e0 ≈G G
   go nil = nil
   go (p :: G) = snd +-identity p :: go G
 
 *G-identity : (forall {n} (G : QCtx n) -> e1 *G G ≈G G)
-            × (forall {n} rho -> rho *G constQCtx n e1 ≈G constQCtx n rho)
+            × (forall {n} rho -> rho *G replicateVec n e1 ≈G replicateVec n rho)
 fst *G-identity nil = nil
 fst *G-identity (p :: G) = fst *-identity p :: fst *G-identity G
 
@@ -284,13 +263,15 @@ snd *G-identity {succ n} rho = snd *-identity rho :: snd *G-identity {n} rho
 *G-distrib-+ nil rho rho' = nil
 *G-distrib-+ (p :: G) rho rho' = snd distrib p rho rho' :: *G-distrib-+ G rho rho'
 
-e0*G : forall {n} (G : QCtx n) -> e0 *G G ≈G constQCtx n e0
+e0*G : forall {n} (G : QCtx n) -> e0 *G G ≈G replicateVec n e0
 e0*G nil = nil
 e0*G (p :: G) = fst annihil p :: e0*G G
 
-*Gempty : forall rho n -> rho *G constQCtx n e0 ≈G constQCtx n e0
-*Gempty rho zero = nil
-*Gempty rho (succ n) = snd annihil rho :: *Gempty rho n
+*Gempty : forall rho n -> rho *G replicateVec n e0 ≈G replicateVec n e0
+*Gempty rho n =
+  rho *G replicateVec n e0   ≈[ vmap-replicateVec (rho *_) n e0 ]G
+  replicateVec n (rho * e0)  ≈[ replicateVZip n (snd annihil rho) ]G
+  replicateVec n e0          ≈G-QED
 
 data Dir : Set where
   syn chk : Dir
@@ -546,10 +527,10 @@ substituteTyChk Dl [ et ] tt' = [ substituteTySyn Dl et tt' ]
 
 sg≤0->G≤0 :
   forall {n d G sg} {t : Term n d} ->
-  G |-[ sg ] t -> sg->rho sg ≤ e0 -> G ≤G constQCtx n e0
+  G |-[ sg ] t -> sg->rho sg ≤ e0 -> G ≤G replicateVec n e0
 sg≤0->G≤0 {sg = sg} (var {th = th} sub) le = go th sub
   where
-  go : forall {n G} th -> G ≤G varQCtx th (sg->rho sg) -> G ≤G constQCtx n e0
+  go : forall {n G} th -> G ≤G varQCtx th (sg->rho sg) -> G ≤G replicateVec n e0
   go (os th) (le' :: sub) = ≤-trans le' le :: sub
   go (o' th) (le' :: sub) = le' :: go th sub
 sg≤0->G≤0 (app split er sr) le =
@@ -562,7 +543,7 @@ sg≤0->G≤0 [ er ] le = sg≤0->G≤0 er le
 
 punchInNManyVarsRes :
   forall {l n m d sg} {t : Term (l +N m) d} {Gm : QCtx m} {Gn} (Gl : QCtx l) ->
-  Gn ≤G constQCtx n e0 -> Gl +V Gm |-[ sg ] t ->
+  Gn ≤G replicateVec n e0 -> Gl +V Gm |-[ sg ] t ->
   Gl +V Gn +V Gm |-[ sg ] punchInNManyVars n l t
 punchInNManyVarsRes {l = l} {n} {m} {sg = sg} {Gm = Gm} {Gn} Gl subn (var {th = th} sub)
   rewrite VZip== (varQCtx-part l th (sg->rho sg))
@@ -571,7 +552,7 @@ punchInNManyVarsRes {l = l} {n} {m} {sg = sg} {Gm = Gm} {Gn} Gl subn (var {th = 
   where
   a : Gl +V Gn +V Gm ≤G varQCtx (1≤th-leftPart (n +N m) thl) (sg->rho sg)
   a rewrite VZip== (varQCtx-leftPart {l} (n +N m) thl (sg->rho sg))
-          | VZip== (constQCtx-+V n m e0)
+          | VZip== (replicateVec-+V n m e0)
     = takeVZip Gl (varQCtx thl (sg->rho sg)) sub
         +VZip subn
         +VZip dropVZip Gl (varQCtx thl (sg->rho sg)) sub
@@ -580,9 +561,9 @@ punchInNManyVarsRes {l = l} {n} {m} {sg = sg} {Gm = Gm} {Gn} Gl subn (var {th = 
   a : Gl +V Gn +V Gm ≤G varQCtx (1≤th-rightPart l (1≤th-rightPart n thm)) (sg->rho sg)
   a rewrite VZip== (varQCtx-rightPart l (1≤th-rightPart n thm) (sg->rho sg))
           | VZip== (varQCtx-rightPart n thm (sg->rho sg))
-    = takeVZip Gl (constQCtx l e0) sub
+    = takeVZip Gl (replicateVec l e0) sub
         +VZip subn
-        +VZip dropVZip Gl (constQCtx l e0) sub
+        +VZip dropVZip Gl (replicateVec l e0) sub
 punchInNManyVarsRes {l = l} {n} {m} {Gm = Gm} {Gn} Gl sub (app {Ge = Ge} {Gs} split er sr)
   rewrite sym (VZip== (takeDropVec== l Ge))
         | sym (VZip== (takeDropVec== l Gs))
@@ -592,10 +573,10 @@ punchInNManyVarsRes {l = l} {n} {m} {Gm = Gm} {Gn} Gl sub (app {Ge = Ge} {Gs} sp
   =
   app split' (punchInNManyVarsRes Gel (≤G-refl _) er) (punchInNManyVarsRes Gsl (≤G-refl _) sr)
   where
-  split' : Gl +V Gn +V Gm ≤G (Gel +V constQCtx n e0 +V Gem) +G (Gsl +V constQCtx n e0 +V Gsm)
-  split' rewrite VZip== (vzip-+V _+_ Gel Gsl (constQCtx n e0 +V Gem) (constQCtx n e0 +V Gsm))
-               | VZip== (vzip-+V _+_ (constQCtx n e0) (constQCtx n e0) Gem Gsm)
-               | VZip== (fst +G-identity (constQCtx n e0))
+  split' : Gl +V Gn +V Gm ≤G (Gel +V replicateVec n e0 +V Gem) +G (Gsl +V replicateVec n e0 +V Gsm)
+  split' rewrite VZip== (vzip-+V _+_ Gel Gsl (replicateVec n e0 +V Gem) (replicateVec n e0 +V Gsm))
+               | VZip== (vzip-+V _+_ (replicateVec n e0) (replicateVec n e0) Gem Gsm)
+               | VZip== (fst +G-identity (replicateVec n e0))
     = takeVZip Gl (Gel +G Gsl) split
         +VZip sub
         +VZip dropVZip Gl (Gel +G Gsl) split
@@ -668,7 +649,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
 
   sumG : forall {m n} -> (1 ≤th m -> QCtx n) -> QCtx n
   sumG f =
-    fold (constQCtx _ e0) _+G_ (fst (Vec->LengthedList (1≤th-tabulate f)))
+    fold (replicateVec _ e0) _+G_ (fst (Vec->LengthedList (1≤th-tabulate f)))
 
   --SubstRes : forall {m n} (vf : Subst m n) -> QCtx m -> QCtx n -> Set _
   --SubstRes {m} {n} vf Gm Gn = {!!}
@@ -691,7 +672,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
                 : forall {m} -> Vec Two m -> Vec C m -> Vec (Term n d) m ->
                   Set (c ⊔ l')
                 where
-    nil : (split : G ≤G constQCtx n e0) -> G |-*[ nil , nil ] nil
+    nil : (split : G ≤G replicateVec n e0) -> G |-*[ nil , nil ] nil
     cons : forall {m Gt Gts sg rho t sgs rhos} {ts : Vec _ m}
            (eq : sg->rho sg * rho == rho) (split : G ≤G rho *G Gt +G Gts)
            (tr : Gt |-[ sg ] t) (tsr : Gts |-*[ sgs , rhos ] ts) ->
@@ -710,33 +691,33 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
   punchInNManyVarsRes* :
     forall {l n m o d sgs rhos} {ts : Vec (Term (l +N m) d) o}
     {Gm : QCtx m} {Gn} (Gl : QCtx l) ->
-    Gn ≤G constQCtx n e0 -> Gl +V Gm |-*[ sgs , rhos ] ts ->
+    Gn ≤G replicateVec n e0 -> Gl +V Gm |-*[ sgs , rhos ] ts ->
     Gl +V Gn +V Gm |-*[ sgs , rhos ] vmap (punchInNManyVars n l) ts
   punchInNManyVarsRes* {l} {n} {m} {Gm = Gm} {Gn} Gl sub (nil split) =
     nil split'
     where
-    split' : Gl +V Gn +V Gm ≤G constQCtx (l +N n +N m) e0
-    split' rewrite VZip== (constQCtx-+V l m e0)
-                 | VZip== (constQCtx-+V l (n +N m) e0)
-                 | VZip== (constQCtx-+V n m e0)
-      = takeVZip Gl (constQCtx l e0) split
+    split' : Gl +V Gn +V Gm ≤G replicateVec (l +N n +N m) e0
+    split' rewrite VZip== (replicateVec-+V l m e0)
+                 | VZip== (replicateVec-+V l (n +N m) e0)
+                 | VZip== (replicateVec-+V n m e0)
+      = takeVZip Gl (replicateVec l e0) split
           +VZip sub
-          +VZip dropVZip Gl (constQCtx l e0) split
+          +VZip dropVZip Gl (replicateVec l e0) split
   punchInNManyVarsRes* {l} {n} {sgs = sg :: sgs} {rho :: rhos} {t :: ts} {Gm}
                        {Gn} Gl sub (cons {Gt = Gt} {Gts} eq split tr tsr) =
     cons eq split'
          (punchInNManyVarsRes (takeVec l Gt) (≤G-refl _) tr')
          (punchInNManyVarsRes* (takeVec l Gts) sub tsr')
     where
-    split' : Gl +V Gn +V Gm ≤G rho *G (takeVec l Gt +V constQCtx n e0 +V dropVec l Gt)
+    split' : Gl +V Gn +V Gm ≤G rho *G (takeVec l Gt +V replicateVec n e0 +V dropVec l Gt)
                                  +G (takeVec l Gts +V Gn +V dropVec l Gts)
-    split' rewrite VZip== (vmap-+V (rho *_) (takeVec l Gt) (constQCtx n e0 +V dropVec l Gt))
-                 | VZip== (vmap-+V (rho *_) (constQCtx n e0) (dropVec l Gt))
+    split' rewrite VZip== (vmap-+V (rho *_) (takeVec l Gt) (replicateVec n e0 +V dropVec l Gt))
+                 | VZip== (vmap-+V (rho *_) (replicateVec n e0) (dropVec l Gt))
                  | VZip== (vzip-+V _+_ (rho *G takeVec l Gt)
                                        (takeVec l Gts)
-                                       (rho *G constQCtx n e0 +V rho *G dropVec l Gt)
+                                       (rho *G replicateVec n e0 +V rho *G dropVec l Gt)
                                        (Gn +V dropVec l Gts))
-                 | VZip== (vzip-+V _+_ (rho *G constQCtx n e0) Gn
+                 | VZip== (vzip-+V _+_ (rho *G replicateVec n e0) Gn
                                        (rho *G dropVec l Gt) (dropVec l Gts))
                  | sym (VZip== (takeDropVec== l Gt))
                  | sym (VZip== (takeDropVec== l Gts))
@@ -749,9 +730,9 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
           +VZip ≤G-reflexive (
             Gn
               ≈[ ≈G-sym (fst +G-identity Gn) ]G
-            constQCtx n e0 +G Gn
+            replicateVec n e0 +G Gn
               ≈[ ≈G-sym (*Gempty rho n +G-cong ≈G-refl Gn) ]G
-            rho *G constQCtx n e0 +G Gn
+            rho *G replicateVec n e0 +G Gn
               ≈G-QED
           )
           +VZip dropVZip Gl (rho *G takeVec l Gt +G takeVec l Gts) split
@@ -770,7 +751,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
     --  = takeVZip Gl (rho *G takeVec l Gt +G takeVec l Gts) split
     --      +VZip (
     --        Gn                    ≤[ {!!} ]G
-    --        constQCtx n e0 +G Gn  ≤[ {!sub!} ]G
+    --        replicateVec n e0 +G Gn  ≤[ {!sub!} ]G
     --        rho *G Gn +G Gn       ≤G-QED
     --      )
     --      +VZip dropVZip Gl (rho *G takeVec l Gt +G takeVec l Gts) split
@@ -788,15 +769,15 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
   liftSubstRes' {sgs = sgs} {Gm} {Gn} sg vf vfr =
     cons (sg*sg==sg sg) split (var (≤G-refl _)) vfr'
     where
-    split : sg->rho sg :: Gn ≤G sg->rho sg *G (sg->rho sg :: constQCtx _ e0) +G (e0 :: Gn)
+    split : sg->rho sg :: Gn ≤G sg->rho sg *G (sg->rho sg :: replicateVec _ e0) +G (e0 :: Gn)
     split = ≤G-reflexive (sym (
         sg->rho sg * sg->rho sg + e0  =[ snd +-identity _ ]=
         sg->rho sg * sg->rho sg       =[ sg*sg==sg sg ]=
         sg->rho sg                    QED
       )
       :: ≈G-sym ((
-        sg->rho sg *G constQCtx _ e0 +G Gn  ≈[ *Gempty _ _ +G-cong ≈G-refl Gn ]G
-                      constQCtx _ e0 +G Gn  ≈[ fst +G-identity Gn ]G
+        sg->rho sg *G replicateVec _ e0 +G Gn  ≈[ *Gempty _ _ +G-cong ≈G-refl Gn ]G
+                      replicateVec _ e0 +G Gn  ≈[ fst +G-identity Gn ]G
                                         Gn  ≈G-QED
       )))
 
@@ -849,7 +830,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
       let split' =
                      Gn                 ≤[ split ]G
            rho *G Gt +G Gts             ≤[ ≤G-refl _ +G-mono {!sub!} ]G
-           rho *G Gt +G constQCtx n e0  ≤[ ≤G-reflexive (snd +G-identity _) ]G
+           rho *G Gt +G replicateVec n e0  ≤[ ≤G-reflexive (snd +G-identity _) ]G
            rho *G Gt                    ≤G-QED
       in
       {!tr!}
@@ -858,7 +839,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
                           Gn      ≤[ split ]G
                 rho *G Gt +G Gts  ≤[ le *G-mono ≤G-refl Gt +G-mono ≤G-refl Gts ]G
                  e0 *G Gt +G Gts  ≤[ ≤G-reflexive (e0*G Gt) +G-mono ≤G-refl Gts ]G
-           constQCtx n e0 +G Gts  ≤[ ≤G-reflexive (fst +G-identity Gts) ]G
+           replicateVec n e0 +G Gts  ≤[ ≤G-reflexive (fst +G-identity Gts) ]G
                              Gts  ≤G-QED
       in
       go th sub (vf o o') (weakenRes* split' vfr)
@@ -876,13 +857,13 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
   substituteRes {l = l} {m} {rho = rho} {sg} {t = t} {Gm = Gm} {Gt} Gl s'r=r (var {th = th} sub) tr
     with 1≤thToNat th ==Nat? l
   ... | yes eq rewrite VZip== (varQCtx-3parts l th (sg->rho sg) eq) =
-    the (punchInNManyVarsRes {Gn = Gl} nil (takeVZip Gl (constQCtx l e0) sub) {!eq!})
+    the (punchInNManyVarsRes {Gn = Gl} nil (takeVZip Gl (replicateVec l e0) sub) {!eq!})
     where
     w : forall {t : Term m chk} sg' -> rho *G Gt |-[ sg' ] t -> Gm +G rho *G Gt |-[ sg' ] t
     w sg' = weakenRes
       (Gm +G rho *G Gt
-         ≤[ tailVZip (dropVZip Gl (constQCtx l e0) sub) +G-mono ≤G-refl (rho *G Gt) ]G
-       constQCtx _ e0 +G rho *G Gt
+         ≤[ tailVZip (dropVZip Gl (replicateVec l e0) sub) +G-mono ≤G-refl (rho *G Gt) ]G
+       replicateVec _ e0 +G rho *G Gt
          ≤[ ≤G-reflexive (fst +G-identity _) ]G
        rho *G Gt  ≤G-QED)
 
@@ -891,8 +872,8 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
                                     e1 *G Gt   ≤[ ≤G-reflexive (fst *G-identity Gt) ]G
                                     Gt         ≤G-QED) tr)
     tr' ff le tr = w ff (weakenRes (rho *G Gt  ≤[ ≤-refl {rho} *G-mono sg≤0->G≤0 tr ≤-refl ]G
-                                    rho *G constQCtx m e0  ≤[ {!!} ]G
-                                    constQCtx m e0  ≤[ {!!} ]G
+                                    rho *G replicateVec m e0  ≤[ {!!} ]G
+                                    replicateVec m e0  ≤[ {!!} ]G
                                     Gt  ≤G-QED) tr)
   ... | no neq rewrite VZip== (varQCtx-part l th (sg->rho sg))
     with 1≤th-part l th | 1≤th-part-toNat l th
