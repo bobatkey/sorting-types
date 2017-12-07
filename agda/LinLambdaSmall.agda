@@ -126,7 +126,8 @@ module Usage where
   1#-appears-once (lam sr) use = {!!}
   1#-appears-once (bang {rho = rho} split sr) use with rho ==? 1#
   1#-appears-once {i = i} (bang {Gs = Gs} {rho = .1#} split sr) use | yes refl with 1≤th-indexVZip i split
-  ... | z rewrite use | 1≤th-index-vmap i id Gs = mapSg bang (\ f -> \ { (bang el) -> cong bang (f el) }) (1#-appears-once sr (sym (1#-top z)))
+  ... | z rewrite use | 1≤th-index-vmap i id Gs =
+    mapSg bang (\ f -> \ { (bang el) -> cong bang (f el) }) (1#-appears-once sr (sym (1#-top z)))
   1#-appears-once {i = i} (bang {rho = rho} split sr) use | no np = {!!}
   1#-appears-once [ er ] use = {!!}
 
