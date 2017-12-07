@@ -36,6 +36,7 @@ record IsPreorder {l'} (≤ : Rel l') : Set (c ⊔ l ⊔ l') where
   ≤-refl = ≤-reflexive refl
 
 record Preorder l' : Set (c ⊔ l ⊔ lsuc l') where
+  infixr 4 _≤_
   field
     _≤_ : Rel l'
     isPreorder : IsPreorder _≤_
@@ -48,6 +49,7 @@ record IsPoset {l'} (≤ : Rel l') : Set (c ⊔ l ⊔ l') where
   open IsPreorder isPreorder public
 
 record Poset l' : Set (c ⊔ l ⊔ lsuc l') where
+  infixr 4 _≤_
   field
     _≤_ : Rel l'
     isPoset : IsPoset _≤_
@@ -61,6 +63,7 @@ record IsMeetSemilattice {l'} (_≤_ : Rel l') (meet : Op2) : Set (c ⊔ l ⊔ l
   open IsPoset isPoset public
 
 record MeetSemilattice l' : Set (c ⊔ l ⊔ lsuc l') where
+  infixr 4 _≤_
   field
     _≤_ : Rel l'
     meet : Op2
@@ -77,6 +80,7 @@ record IsLattice {l'} (_≤_ : Rel l') (meet join : Op2) : Set (c ⊔ l ⊔ l') 
   open IsPoset isPoset public
 
 record Lattice l' : Set (c ⊔ l ⊔ lsuc l') where
+  infixr 4 _≤_
   field
     _≤_ : Rel l'
     meet join : Op2
@@ -94,12 +98,14 @@ record Lattice l' : Set (c ⊔ l ⊔ lsuc l') where
 --
 
 record IsMonoid (e : C) (· : Op2) : Set (c ⊔ l) where
+  infixr 5 _·-cong_
   field
     identity : Identity · e
     assoc : Assoc ·
     _·-cong_ : Cong2 ·
 
 record Monoid : Set (c ⊔ l) where
+  infixr 5 _·_
   field
     e : C
     _·_ : Op2
@@ -113,6 +119,7 @@ record IsCommutativeMonoid (e : C) (· : Op2) : Set (c ⊔ l) where
   open IsMonoid isMonoid public
 
 record CommutativeMonoid : Set (c ⊔ l) where
+  infixr 5 _·_
   field
     e : C
     _·_ : Op2
@@ -135,6 +142,8 @@ record IsSemiring (e0 e1 : C) (+ * : Op2) : Set (c ⊔ l) where
     renaming (identity to *-identity; assoc to *-assoc; _·-cong_ to _*-cong_)
 
 record Semiring : Set (c ⊔ l) where
+  infixr 6 _+_
+  infixr 7 _*_
   field
     e0 e1 : C
     _+_ _*_ : Op2
@@ -151,6 +160,8 @@ record Semiring : Set (c ⊔ l) where
   *-monoid = record { isMonoid = *-isMonoid }
 
 record IsPosemiring {l'} (≤ : Rel l') (e0 e1 : C) (+ * : Op2) : Set (c ⊔ l ⊔ l') where
+  infixr 6 _+-mono_
+  infixr 7 _*-mono_
   field
     _+-mono_ : Mono ≤ +
     _*-mono_ : Mono ≤ *
@@ -160,6 +171,9 @@ record IsPosemiring {l'} (≤ : Rel l') (e0 e1 : C) (+ * : Op2) : Set (c ⊔ l �
   open IsSemiring isSemiring public
 
 record Posemiring l' : Set (c ⊔ l ⊔ lsuc l') where
+  infixr 4 _≤_
+  infixr 6 _+_
+  infixr 7 _*_
   field
     _≤_ : Rel l'
     e0 e1 : C
@@ -177,6 +191,8 @@ record Posemiring l' : Set (c ⊔ l ⊔ lsuc l') where
 
 record IsMeetSemilatticeSemiring {l'} (≤ : Rel l') (e0 e1 : C) (+ * meet : Op2)
                                  : Set (c ⊔ l ⊔ l') where
+  infixr 6 _+-mono_
+  infixr 7 _*-mono_
   field
     _+-mono_ : Mono ≤ +
     _*-mono_ : Mono ≤ *
@@ -186,6 +202,9 @@ record IsMeetSemilatticeSemiring {l'} (≤ : Rel l') (e0 e1 : C) (+ * meet : Op2
   open IsSemiring isSemiring public
 
 record MeetSemilatticeSemiring l' : Set (c ⊔ l ⊔ lsuc l') where
+  infixr 4 _≤_
+  infixr 6 _+_
+  infixr 7 _*_
   field
     _≤_ : Rel l'
     e0 e1 : C
