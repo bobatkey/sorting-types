@@ -979,7 +979,7 @@ vmap : forall {a b A B n} -> (A -> B) -> Vec {a} A n -> Vec {b} B n
 vmap f nil = nil
 vmap f (x :: xs) = f x :: vmap f xs
 
-vzip : forall {a b c A B C n} -> (A -> B -> C) ->
+vzip : forall {a b c A B C} (f : A -> B -> C) {n} ->
        Vec {a} A n -> Vec {b} B n -> Vec {c} C n
 vzip f nil ys = nil
 vzip f (x :: xs) (y :: ys) = f x y :: vzip f xs ys
@@ -1076,6 +1076,16 @@ _+VZip_ : forall {a b r A B R m n xsm ysm xsn ysn} ->
           VZip {a} {b} {r} {A} {B} R (xsm +V xsn) (ysm +V ysn)
 nil +VZip rsn = rsn
 (r :: rsm) +VZip rsn = r :: rsm +VZip rsn
+
+zipVZip : forall {a b c d e f r s t A B C D E F R S T} ->
+          (∀ {rx ry sx sy tx ty} -> R rx ry -> S sx sy -> T tx ty) ->
+          forall {n rxs rys sxs sys txs tys} ->
+          VZip {a} {b} {r} {A} {B} R {n} rxs rys ->
+          VZip {c} {d} {s} {C} {D} S {n} sxs sys ->
+          VZip {e} {f} {t} {E} {F} T {n} txs tys
+zipVZip f {txs = nil} {nil} nil nil = nil
+zipVZip f {txs = tx :: txs} {ty :: tys} (r :: rs) (s :: ss) =
+  f r s :: zipVZip f rs ss
 
 replicateVZip :
   forall {a b r A B R} n {x y} -> R x y ->

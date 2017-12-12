@@ -549,6 +549,15 @@ substituteTySyn Dl (the st) tt' = the (substituteTyChk Dl st tt')
 substituteTyChk Dl (lam {S = S} st) tt' = lam (substituteTyChk (S :: Dl) st tt')
 substituteTyChk Dl [ et ] tt' = [ substituteTySyn Dl et tt' ]
 
+~~>-preservesTySyn : forall {n D T} {e f : Term n syn} (et : D |- e ∈ T) ->
+                     e ~~> f -> D |- f ∈ T
+~~>-preservesTySyn (app (the (lam s0t)) s1t) (beta S T s0 s1) =
+  the (substituteTyChk nil s0t s1t)
+
+~~>-preservesTyChk : forall {n D T} {s t : Term n chk} (st : D |- T ∋ s) ->
+                     s ~~> t -> D |- T ∋ t
+~~>-preservesTyChk [ the st ] (upsilon S s) = st
+
 sg≤0->G≤0 :
   forall {n d G sg} {t : Term n d} ->
   G |-[ sg ] t -> sg->rho sg ≤ e0 -> G ≤G replicateVec n e0
@@ -917,7 +926,61 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
      e0 *G Gt         ≤[ ≤G-reflexive (e0*G Gt) ]G
         0G            ≤G-QED
 
-  module ZeroMaximal (e0-maximal : forall {a} -> e0 ≤ a -> a == e0) where
+  substSplit : forall {m n vf sgs} {Gm Gem Gsm : QCtx m} {Gn : QCtx n} ->
+               Gm ≤G Gem +G Gsm -> SubstRes' vf sgs Gm Gn ->
+               Sg _ \ Gen -> Sg _ \ Gsn -> Gn ≤G Gen +G Gsn
+  substSplit {Gm = nil} {nil} {nil} {Gn} nil (nil split) =
+    0G , 0G , ≤G-trans split (≤G-reflexive (≈G-sym (fst +G-identity 0G)))
+  substSplit {Gm = rho :: Gm} {rhoe :: Gem} {rhos :: Gsm} {Gn} (le :: splitm) (cons {Gt = Gt} {Gts} eq splitn tr vfr)
+    with substSplit splitm vfr
+  ... | Gen , Gsn , split' =
+    rhoe *G Gt +G Gen , rhos *G Gt +G Gsn ,
+      Gn ≤[ splitn ]G
+                 rho      *G Gt  +G     Gts       ≤[ le *G-mono ≤G-refl Gt +G-mono split' ]G
+            (rhoe + rhos) *G Gt  +G (Gen +G Gsn)  ≤[ ≤G-reflexive equality ]G
+      (rhoe *G Gt +G Gen) +G (rhos *G Gt +G Gsn)  ≤G-QED
+    where
+    equality : _
+    equality =
+            (rhoe + rhos) *G Gt  +G (Gen +G Gsn)  ≈[ *G-distrib-+ Gt rhoe rhos +G-cong ≈G-refl _ ]G
+      (rhoe *G Gt +G rhos *G Gt) +G (Gen +G Gsn)  ≈[ +G-assoc _ _ _ ]G
+      rhoe *G Gt +G (rhos *G Gt +G (Gen +G Gsn))  ≈[ ≈G-refl _ +G-cong ≈G-sym (+G-assoc _ _ _) ]G
+      rhoe *G Gt +G ((rhos *G Gt +G Gen) +G Gsn)  ≈[ ≈G-refl _ +G-cong (+G-comm _ _ +G-cong ≈G-refl _) ]G
+      rhoe *G Gt +G ((Gen +G rhos *G Gt) +G Gsn)  ≈[ ≈G-refl _ +G-cong +G-assoc _ _ _ ]G
+      rhoe *G Gt +G (Gen +G (rhos *G Gt +G Gsn))  ≈[ ≈G-sym (+G-assoc _ _ _) ]G
+      (rhoe *G Gt +G Gen) +G (rhos *G Gt +G Gsn)  ≈G-QED
+
+  splitSubst : forall {m n vf sgs} {Gm Gem Gsm : QCtx m} {Gn : QCtx n}
+               (splitm : Gm ≤G Gem +G Gsm) (vfr : SubstRes' vf sgs Gm Gn) ->
+               let Gen , Gsn , splitn = substSplit splitm vfr in
+               SubstRes' vf sgs Gem Gen × SubstRes' vf sgs Gsm Gsn
+  splitSubst {Gm = nil} {nil} {nil} {Gn} nil (nil split) =
+    nil (≤G-refl 0G) , nil (≤G-refl 0G)
+  splitSubst {Gm = rho :: Gm} {rhoe :: Gem} {rhos :: Gsm} {Gn} (le :: splitm) (cons eq split tr vfr)
+    with splitSubst splitm vfr
+  ... | vfre , vfrs = cons {!eq!} (≤G-refl _) tr vfre , cons {!!} (≤G-refl _) tr vfrs
+
+  module ZeroMaximal (e0-maximal : forall {a} -> e0 ≤ a -> a == e0)
+                     (positive : forall {a b} -> a + b == e0 -> a == e0 × b == e0)
+                     where
+    splitEq : forall {rho rho0 rho1 sg} ->
+              rho ≤ rho0 + rho1 -> rho * sg->rho sg == rho ->
+              rho0 * sg->rho sg == rho0 × rho1 * sg->rho sg == rho1
+    splitEq {sg = tt} le eq = snd *-identity _ , snd *-identity _
+    splitEq {rho} {rho0} {rho1} {sg = ff} le eq
+      rewrite trans (sym eq) (snd annihil rho)
+            | snd annihil rho0 | snd annihil rho1
+      = mapSg sym sym (positive (e0-maximal le))
+
+    splitEqs : forall {n G G0 G1 sgs} ->
+               let f = vzip (\ rho sg -> rho * sg->rho sg) {n} in
+               G ≤G G0 +G G1 -> f G sgs ≈G G ->
+               f G0 sgs ≈G G0 × f G1 sgs ≈G G1
+    splitEqs {G = nil} {nil} {nil} {nil} nil nil = nil , nil
+    splitEqs {G = rho :: G} {rho0 :: G0} {rho1 :: G1} {sg :: sgs} (le :: split) (eq :: eqs)
+      with splitEq {sg = sg} le eq | splitEqs split eqs
+    ... | eq0 , eq1 | eqs0 , eqs1 =
+      eq0 :: eqs0 , eq1 :: eqs1
 
     substituteRes' :
       forall {m n d sg sgs} {t : Term m d}
@@ -968,8 +1031,10 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
                           Gts  ≤G-QED
         in
         go th sub (vf o o') (weakenRes* split' vfr)
-    substituteRes' {sgs = sgs} eqs (app split er sr) vf vfr =
-      app {!!} (substituteRes' {sgs = sgs} {!eqs!} er vf {!!}) (substituteRes' {sgs = sgs} {!!} sr vf {!!})
+    substituteRes' {sgs = sgs} eqs (app split er sr) vf vfr
+      with substSplit split vfr | splitSubst split vfr | splitEqs split eqs
+    ... | Gen , Gsn , split' | vfre , vfrs | eqse , eqss =
+      app split' (substituteRes' eqse er vf vfre) (substituteRes' eqss sr vf vfrs)
     substituteRes' eqs (the sr) vf vfr = the (substituteRes' eqs sr vf vfr)
     substituteRes' {sg = sg} eqs (lam sr) vf vfr =
       lam (substituteRes' (sg*sg==sg sg :: eqs) sr (liftSubst vf) (liftSubstRes' sg vf vfr))
