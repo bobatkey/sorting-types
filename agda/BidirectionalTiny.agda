@@ -603,6 +603,17 @@ zeroRes [ er ] = [ zeroRes er ]
   sr' rewrite eq = ==zeroRes eq sr
 ==zeroRes eq [ er ] = [ ==zeroRes eq er ]
 
+resWasZero : forall {n d G} {t : Term n d} -> G |-[ ff ] t -> G ≤G 0G
+resWasZero (var {th} sub) = ≤G-trans sub (≤G-reflexive (varQCtx-e0 th))
+resWasZero {G = G} (app {Ge = Ge} {Gs} split er sr) =
+      G     ≤[ split ]G
+  Ge +G Gs  ≤[ resWasZero er +G-mono resWasZero sr ]G
+  0G +G 0G  ≤[ ≤G-reflexive (fst +G-identity 0G) ]G
+        0G  ≤G-QED
+resWasZero (the sr) = resWasZero sr
+resWasZero (lam sr) = tailVZip (resWasZero sr)
+resWasZero [ er ] = resWasZero er
+
 module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
 
   weakenRes : forall {n d G G'} {t : Term n d} {sg} ->
@@ -917,8 +928,23 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
 
     ~~>-preservesRes : forall {n d G sg} {t u : Term n d} (tr : G |-[ sg ] t) ->
                        t ~~> u -> G |-[ sg ] u
-    ~~>-preservesRes {sg = sg} (app split (the (lam s0r)) s1r) (beta S T s0 s1) =
-      the (substituteRes {sgs = sg :: replicateVec _ tt} (sg*sg==sg sg :: {!mapVZip!}) s0r _ (singleSubstRes (the {S = S} s1r) {!!}))
+    ~~>-preservesRes {G = G} {sg} (app {Ge = Ge} {Gs} split (the (lam s0r)) s1r) (beta S T s0 s1) =
+      the (substituteRes {sgs = sg :: replicateVec _ tt} (sg*sg==sg sg :: ≈G-trans (vzip-replicateVec (\ sg' rho -> sg->rho sg' * rho) _ tt Ge) (≈G-trans (vmap-funext (e1 *_) id Ge (fst *-identity)) (vmap-id Ge))) s0r _ (singleSubstRes (the {S = S} s1r) (split' sg s1r)))
+      where
+      split-eqs : Ge +G Gs ≈G sg->rho tt *G Gs +G Ge
+      split-eqs =
+              Ge +G Gs  ≈[ +G-comm Ge Gs ]G
+              Gs +G Ge  ≈[ ≈G-sym (fst *G-identity Gs) +G-cong ≈G-refl Ge ]G
+        e1 *G Gs +G Ge  ≈G-QED
+
+      split' : forall {s1} sg -> Gs |-[ sg ] s1 -> G ≤G sg->rho sg *G Gs +G Ge
+      split' tt s1r = ≤G-trans split (≤G-reflexive split-eqs)
+      split' ff s1r =
+                  G     ≤[ split ]G
+              Ge +G Gs  ≤[ ≤G-reflexive (+G-comm Ge Gs) ]G
+              Gs +G Ge  ≤[ resWasZero s1r +G-mono ≤G-refl Ge ]G
+              0G +G Ge  ≤[ ≤G-reflexive (≈G-sym (e0*G Gs) +G-cong ≈G-refl Ge) ]G
+        e0 *G Gs +G Ge  ≤G-QED
     ~~>-preservesRes [ the sr ] (upsilon S s) = sr
     ~~>-preservesRes (lam s0r) (lam-cong s0 s1 red) = lam (~~>-preservesRes s0r red)
     ~~>-preservesRes (app split e0r sr) (app1-cong e0 e1 s red) = app split (~~>-preservesRes e0r red) sr

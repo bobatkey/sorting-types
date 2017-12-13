@@ -1099,6 +1099,21 @@ vmap-replicateVec :
 vmap-replicateVec f zero x = nil
 vmap-replicateVec f (succ n) x = refl :: vmap-replicateVec f n x
 
+vzip-replicateVec :
+  forall {a b c A B C} (f : A -> B -> C) n x ys ->
+  VZip _==_ {n} (vzip {a} {b} {c} {A} {B} {C} f (replicateVec n x) ys) (vmap (f x) ys)
+vzip-replicateVec f zero x nil = nil
+vzip-replicateVec f (succ n) x (y :: ys) = refl :: vzip-replicateVec f n x ys
+
+vmap-funext : forall {a b A B n} f g xs -> (forall x -> f x == g x) ->
+              VZip _==_ {n} (vmap {a} {b} {A} {B} f xs) (vmap g xs)
+vmap-funext f g nil eq = nil
+vmap-funext f g (x :: xs) eq = eq x :: vmap-funext f g xs eq
+
+vmap-id : forall {a A n} xs -> VZip _==_ {n} (vmap (id {a} {A}) xs) xs
+vmap-id nil = nil
+vmap-id (x :: xs) = refl :: vmap-id xs
+
 1≤th-indexVZip : forall {a b r A B R n xs ys} ->
                  (i : 1 ≤th n) ->
                  VZip {a} {b} {r} {A} {B} R {n} xs ys ->
