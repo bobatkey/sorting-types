@@ -453,6 +453,9 @@ data _~~>_ {n} : forall {d} (t u : Term n d) -> Set where
           app (the (S ~> T) (lam s0)) s1
           ~~> the T (substitute s0 (singleSubst (the S s1)))
   upsilon : forall S s -> [ the S s ] ~~> s
+  lam-cong : forall s0 s1 -> s0 ~~> s1 -> lam s0 ~~> lam s1
+  app1-cong : forall e0 e1 s -> e0 ~~> e1 -> app e0 s ~~> app e1 s 
+  app2-cong : forall e s0 s1 -> s0 ~~> s1 -> app e s0 ~~> app e s1
 
 punchInNManyVarsTySyn :
   forall {m n l T e} {Dm : Ctx m} (Dn : Ctx n) (Dl : Ctx l) ->
@@ -502,12 +505,16 @@ substituteTyChk [ et ] vf vft = [ substituteTySyn et vf vft ]
 
 ~~>-preservesTySyn : forall {n D T} {e f : Term n syn} (et : D |- e ∈ T) ->
                      e ~~> f -> D |- f ∈ T
-~~>-preservesTySyn (app (the (lam s0t)) s1t) (beta S T s0 s1) =
-  the (substituteTyChk s0t (singleSubst (the S s1)) (singleSubstTy (the s1t)))
-
 ~~>-preservesTyChk : forall {n D T} {s t : Term n chk} (st : D |- T ∋ s) ->
                      s ~~> t -> D |- T ∋ t
+
+~~>-preservesTySyn (app (the (lam s0t)) s1t) (beta S T s0 s1) =
+  the (substituteTyChk s0t (singleSubst (the S s1)) (singleSubstTy (the s1t)))
+~~>-preservesTySyn (app et st) (app1-cong e0 e1 s red) = app (~~>-preservesTySyn et red) st
+~~>-preservesTySyn (app et st) (app2-cong e s0 s1 red) = app et (~~>-preservesTyChk st red)
+
 ~~>-preservesTyChk [ the st ] (upsilon S s) = st
+~~>-preservesTyChk (lam s0t) (lam-cong s0 s1 red) = lam (~~>-preservesTyChk s0t red)
 
 sg≤0->G≤0 :
   forall {n d G sg} {t : Term n d} ->
@@ -913,3 +920,6 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
     ~~>-preservesRes {sg = sg} (app split (the (lam s0r)) s1r) (beta S T s0 s1) =
       the (substituteRes {sgs = sg :: replicateVec _ tt} (sg*sg==sg sg :: {!mapVZip!}) s0r _ (singleSubstRes (the {S = S} s1r) {!!}))
     ~~>-preservesRes [ the sr ] (upsilon S s) = sr
+    ~~>-preservesRes (lam s0r) (lam-cong s0 s1 red) = lam (~~>-preservesRes s0r red)
+    ~~>-preservesRes (app split e0r sr) (app1-cong e0 e1 s red) = app split (~~>-preservesRes e0r red) sr
+    ~~>-preservesRes (app split er s0r) (app2-cong e s0 s1 red) = app split er (~~>-preservesRes s0r red)
