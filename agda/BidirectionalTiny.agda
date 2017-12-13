@@ -454,7 +454,7 @@ data _~~>_ {n} : forall {d} (t u : Term n d) -> Set where
           ~~> the T (substitute s0 (singleSubst (the S s1)))
   upsilon : forall S s -> [ the S s ] ~~> s
   lam-cong : forall s0 s1 -> s0 ~~> s1 -> lam s0 ~~> lam s1
-  app1-cong : forall e0 e1 s -> e0 ~~> e1 -> app e0 s ~~> app e1 s 
+  app1-cong : forall e0 e1 s -> e0 ~~> e1 -> app e0 s ~~> app e1 s
   app2-cong : forall e s0 s1 -> s0 ~~> s1 -> app e s0 ~~> app e s1
 
 punchInNManyVarsTySyn :
@@ -665,7 +665,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
                 where
     nil : (split : G ≤G 0G) -> G |-*[ nil , nil ] nil
     cons : forall {m Gt Gts sg rho t sgs rhos} {ts : Vec _ m}
-           (eq : rho * sg->rho sg == rho) (split : G ≤G rho *G Gt +G Gts)
+           (eq : sg->rho sg * rho == rho) (split : G ≤G rho *G Gt +G Gts)
            (tr : Gt |-[ sg ] t) (tsr : Gts |-*[ sgs , rhos ] ts) ->
            G |-*[ sg :: sgs , rho :: rhos ] t :: ts
 
@@ -681,7 +681,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
               G |-*[ replicateVec n tt , G ] 1≤th-tabulate var
   |-*[,]-id nil = nil nil
   |-*[,]-id (rho :: G) =
-    cons (snd *-identity rho)
+    cons (fst *-identity rho)
          (≤G-reflexive (≈G-sym (≈G-trans
            (snd +-identity _   :: *Gempty rho +G-cong ≈G-refl G)
            (snd *-identity rho :: fst +G-identity G))))
@@ -829,18 +829,18 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
                      (positive : forall {a b} -> a + b == e0 -> a == e0 × b == e0)
                      where
     splitEq : forall {rho rho0 rho1 sg} ->
-              rho ≤ rho0 + rho1 -> rho * sg->rho sg == rho ->
-              rho0 * sg->rho sg == rho0 × rho1 * sg->rho sg == rho1
-    splitEq {sg = tt} le eq = snd *-identity _ , snd *-identity _
+              rho ≤ rho0 + rho1 -> sg->rho sg * rho == rho ->
+              sg->rho sg * rho0 == rho0 × sg->rho sg * rho1 == rho1
+    splitEq {sg = tt} le eq = fst *-identity _ , fst *-identity _
     splitEq {rho} {rho0} {rho1} {sg = ff} le eq
-      rewrite trans (sym eq) (snd annihil rho)
-            | snd annihil rho0 | snd annihil rho1
+      rewrite trans (sym eq) (fst annihil rho)
+            | fst annihil rho0 | fst annihil rho1
       = mapSg sym sym (positive (e0-maximal le))
 
     splitEqs : forall {n G G0 G1 sgs} ->
-               let f = vzip (\ rho sg -> rho * sg->rho sg) {n} in
-               G ≤G G0 +G G1 -> f G sgs ≈G G ->
-               f G0 sgs ≈G G0 × f G1 sgs ≈G G1
+               let f = vzip (\ sg rho -> sg->rho sg * rho) {n} in
+               G ≤G G0 +G G1 -> f sgs G ≈G G ->
+               f sgs G0 ≈G G0 × f sgs G1 ≈G G1
     splitEqs {G = nil} {nil} {nil} {nil} nil nil = nil , nil
     splitEqs {G = rho :: G} {rho0 :: G0} {rho1 :: G1} {sg :: sgs} (le :: split) (eq :: eqs)
       with splitEq {sg = sg} le eq | splitEqs split eqs
@@ -860,7 +860,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
     substituteRes :
       forall {m n d sg sgs} {t : Term m d}
       {Gm : QCtx m} {Gn : QCtx n} ->
-      vzip (\ rho sg' -> rho * sg->rho sg') Gm sgs ≈G Gm ->
+      vzip (\ sg' rho -> sg->rho sg' * rho) sgs Gm ≈G Gm ->
       Gm |-[ sg ] t -> (vf : Subst m n) -> SubstRes vf sgs Gm Gn ->
       Gn |-[ sg ] substitute t vf
     substituteRes {n = n} {sg = sg} {Gn = Gn} eqs (var {th = th} sub) vf vfr = go th sub vf vfr
@@ -889,7 +889,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
                           0G   ≤G-QED
         in
         weakenRes split' (zeroRes tr)
-      go {succ m} {sg} {sg' :: sgs} {rho :: Gm} (os {_} {.m} th) (le :: sub) vf (cons {Gt = Gt} {Gts} eq split tr vfr) | ff rewrite trans (sym eq) (snd annihil rho) =
+      go {succ m} {sg} {sg' :: sgs} {rho :: Gm} (os {_} {.m} th) (le :: sub) vf (cons {Gt = Gt} {Gts} eq split tr vfr) | ff rewrite trans (sym eq) (fst annihil rho) =
         let split' =
                       Gn      ≤[ split ]G
              e0 *G Gt +G Gts  ≤[ ≤G-reflexive (e0*G Gt) +G-mono from0G sub vfr ]G
