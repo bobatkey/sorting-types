@@ -423,13 +423,6 @@ checkType D S [ e ] with synthType D e
 ... | no np = no (np o \ { [ et ] -> S , et })
 ... | yes (S' , et) = mapDec (\ { refl -> [ et ] }) (\ { [ et' ] → synthUnique et et' }) (S ==QTy? S')
 
---mapVars : forall {n d} (f g : Nat -> Nat) -> (forall {m} -> 1 ≤th f m -> 1 ≤th g m) -> Term (f n) d -> Term (g n) d
---mapVars f g h (var th) = var (h th)
---mapVars f g h (app e s) = {!!}
---mapVars f g h (the S s) = the S (mapVars f g h s)
---mapVars f g h (lam s) = lam {!mapVars f g h s!}
---mapVars f g h [ e ] = {!!}
-
 punchInNManyVars : forall {m d} n l -> Term (l +N m) d -> Term (l +N n +N m) d
 punchInNManyVars n l (var th) = var (punchInNMany l n th)
 punchInNManyVars n l (app e s) = app (punchInNManyVars n l e) (punchInNManyVars n l s)
@@ -444,44 +437,22 @@ liftSubst : forall {m n} -> Subst m n -> Subst (succ m) (succ n)
 liftSubst vf (os th) = var zeroth
 liftSubst vf (o' th) = punchInNManyVars 1 0 (vf th)
 
-substitute'' : forall {m n d} -> Term m d -> Subst m n -> Term n d
-substitute'' (var th) vf = vf th
-substitute'' (app e s) vf = app (substitute'' e vf) (substitute'' s vf)
-substitute'' (the S s) vf = the S (substitute'' s vf)
-substitute'' (lam s) vf = lam (substitute'' s (liftSubst vf))
-substitute'' [ e ] vf = [ substitute'' e vf ]
-
-substitute' : forall {m n d} l -> Term (l +N m) d -> Subst m n -> Term (l +N n) d
-substitute' l (var th) vf with 1≤th-part l th
-... | inl thl = var (1≤th-leftPart _ thl)
-... | inr thm = punchInNManyVars l zero (vf thm)
-substitute' l (app e s) vf = app (substitute' l e vf) (substitute' l s vf)
-substitute' l (the S s) vf = the S (substitute' l s vf)
-substitute' l (lam s) vf = lam (substitute' (succ l) s vf)
-substitute' l [ e ] vf = [ substitute' l e vf ]
-
-substitute : forall {m d} l -> QTy -> Term (l +N succ m) d -> Term m chk -> Term (l +N m) d
-substitute l T (var th) t with 1≤thToNat th ==Nat? l
-... | yes _ = punchInNManyVars l zero (the T t)
-... | no neq = var (punchOutN l th neq)
-substitute l T (app e s) t = app (substitute l T e t) (substitute l T s t)
-substitute l T (the S s) t = the S (substitute l T s t)
-substitute l T (lam s) t = lam (substitute (succ l) T s t)
-substitute l T [ e ] t = [ substitute l T e t ]
-
-data _~~>_ {n} : forall {d} (t u : Term n d) -> Set where
-  beta : forall S T s0 s1 -> app (the (S ~> T) (lam s0)) s1 ~~> the T (substitute zero S s0 s1)
-  upsilon : forall S s -> [ the S s ] ~~> s
+substitute : forall {m n d} -> Term m d -> Subst m n -> Term n d
+substitute (var th) vf = vf th
+substitute (app e s) vf = app (substitute e vf) (substitute s vf)
+substitute (the S s) vf = the S (substitute s vf)
+substitute (lam s) vf = lam (substitute s (liftSubst vf))
+substitute [ e ] vf = [ substitute e vf ]
 
 singleSubst : forall {m} -> Term m syn -> Subst (succ m) m
 singleSubst e (os th) = e
 singleSubst e (o' th) = var th
 
-data _~~>'_ {n} : forall {d} (t u : Term n d) -> Set where
-  beta' : forall S T s0 s1 ->
+data _~~>_ {n} : forall {d} (t u : Term n d) -> Set where
+  beta : forall S T s0 s1 ->
           app (the (S ~> T) (lam s0)) s1
-          ~~>' the T (substitute' zero s0 (singleSubst (the S s1)))
-  upsilon' : forall S s -> [ the S s ] ~~>' s
+          ~~> the T (substitute s0 (singleSubst (the S s1)))
+  upsilon : forall S s -> [ the S s ] ~~> s
 
 punchInNManyVarsTySyn :
   forall {m n l T e} {Dm : Ctx m} (Dn : Ctx n) (Dl : Ctx l) ->
@@ -502,57 +473,37 @@ punchInNManyVarsTyChk Dn Dl [ et ] = [ punchInNManyVarsTySyn Dn Dl et ]
 SubstTy : forall {m n} -> Subst m n -> Ctx m -> Ctx n -> Set c
 SubstTy {m} {n} vf Dm Dn = (th : 1 ≤th m) -> Dn |- vf th ∈ 1≤th-index th Dm
 
+singleSubstTy : forall {m D e S} -> D |- e ∈ S -> SubstTy (singleSubst {m} e) (S :: D) D
+singleSubstTy et (os th) = et
+singleSubstTy et (o' th) = var
+
 liftSubstTy : forall {m n Dm Dn} T (vf : Subst m n) ->
               SubstTy vf Dm Dn -> SubstTy (liftSubst vf) (T :: Dm) (T :: Dn)
 liftSubstTy T vf vft (os th) = var
 liftSubstTy T vf vft (o' th) = punchInNManyVarsTySyn (T :: nil) nil (vft th)
 
-substituteTySyn'' :
+substituteTySyn :
   forall {m n S} {e : Term m syn}
   {Dm : Ctx m} {Dn : Ctx n} ->
   Dm |- e ∈ S -> (vf : Subst m n) -> SubstTy vf Dm Dn ->
-  Dn |- substitute'' e vf ∈ S
-substituteTyChk'' :
+  Dn |- substitute e vf ∈ S
+substituteTyChk :
   forall {m n S} {s : Term m chk}
   {Dm : Ctx m} {Dn : Ctx n} ->
   Dm |- S ∋ s -> (vf : Subst m n) -> SubstTy vf Dm Dn ->
-  Dn |- S ∋ substitute'' s vf
+  Dn |- S ∋ substitute s vf
 
-substituteTySyn'' (var {th = th}) vf vft = vft th
-substituteTySyn'' (app et st) vf vft = app (substituteTySyn'' et vf vft) (substituteTyChk'' st vf vft)
-substituteTySyn'' (the st) vf vft = the (substituteTyChk'' st vf vft)
+substituteTySyn (var {th = th}) vf vft = vft th
+substituteTySyn (app et st) vf vft = app (substituteTySyn et vf vft) (substituteTyChk st vf vft)
+substituteTySyn (the st) vf vft = the (substituteTyChk st vf vft)
 
-substituteTyChk'' (lam st) vf vft = lam (substituteTyChk'' st (liftSubst vf) (liftSubstTy _ vf vft))
-substituteTyChk'' [ et ] vf vft = [ substituteTySyn'' et vf vft ]
-
-substituteTySyn :
-  forall {l m S T} {e : Term (l +N succ m) syn} {t : Term m chk}
-  {Dm : Ctx m} (Dl : Ctx l) ->
-  Dl +V T :: Dm |- e ∈ S -> Dm |- T ∋ t ->
-  Dl +V Dm |- substitute l T e t ∈ S
-substituteTyChk :
-  forall {l m S T} {Dm : Ctx m} (Dl : Ctx l)
-  {s : Term (l +N succ m) chk} {t : Term m chk} ->
-  Dl +V T :: Dm |- S ∋ s -> Dm |- T ∋ t ->
-  Dl +V Dm |- S ∋ substitute l T s t
-
-substituteTySyn {l = l} {T = T} {e = var th} {Dm = Dm} Dl var tt'
-  with 1≤thToNat th ==Nat? l
-... | yes eq rewrite 1≤th-index-punchInNMany Dl nil (T :: Dm) th
-                   | 1≤th-index-+ th Dl T Dm eq =
-  the (punchInNManyVarsTyChk Dl nil tt')
-... | no neq rewrite sym (1≤th-index-punchOutN th neq Dl T Dm) = var
-substituteTySyn Dl (app et st) tt' =
-  app (substituteTySyn Dl et tt') (substituteTyChk Dl st tt')
-substituteTySyn Dl (the st) tt' = the (substituteTyChk Dl st tt')
-
-substituteTyChk Dl (lam {S = S} st) tt' = lam (substituteTyChk (S :: Dl) st tt')
-substituteTyChk Dl [ et ] tt' = [ substituteTySyn Dl et tt' ]
+substituteTyChk (lam st) vf vft = lam (substituteTyChk st (liftSubst vf) (liftSubstTy _ vf vft))
+substituteTyChk [ et ] vf vft = [ substituteTySyn et vf vft ]
 
 ~~>-preservesTySyn : forall {n D T} {e f : Term n syn} (et : D |- e ∈ T) ->
                      e ~~> f -> D |- f ∈ T
 ~~>-preservesTySyn (app (the (lam s0t)) s1t) (beta S T s0 s1) =
-  the (substituteTyChk nil s0t s1t)
+  the (substituteTyChk s0t (singleSubst (the S s1)) (singleSubstTy (the s1t)))
 
 ~~>-preservesTyChk : forall {n D T} {s t : Term n chk} (st : D |- T ∋ s) ->
                      s ~~> t -> D |- T ∋ t
@@ -699,35 +650,6 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
     no \ { (_ , r , _) ->
          nothing/=just (trans (sym eq) (snd (snd (snd (inferResComplete sg t r))))) }
 
-  --record _|-*[_]_ {m n} (Gn : QCtx n) (sgf : 1 ≤th m -> Two) (vf : Subst m n)
-  --                : Set _ where
-  --  field
-  --    sub : Gn ≤G (vmap sg->rho (1≤th-tabulate sgf)) 
-  --    --res : 
-  --Gn |-*[ sgf ] vf = {!Gn ≤G vmap sg->rho (1≤th-tabulate sgf)
-  --                 × ((th : 1 ≤th m) -> ?)!}
-
-  {-+}
-  sumG : forall {m n} -> (1 ≤th m -> QCtx n) -> QCtx n
-  sumG f =
-    fold (0G) _+G_ (fst (Vec->LengthedList (1≤th-tabulate f)))
-
-  --SubstRes : forall {m n} (vf : Subst m n) -> QCtx m -> QCtx n -> Set _
-  --SubstRes {m} {n} vf Gm Gn = {!!}
-  --  --Sg (Vec Two m) \ Gsg ->
-  --  --  (th : 1 ≤th m) -> let sg = 1≤th-index th Gsg in
-  --  --                    varQCtx th (sg->rho sg) |-[ sg ] vf th
-  record SubstRes {m n} (vf : Subst m n) (Gm : QCtx m) (Gn : QCtx n)
-                  : Set (c ⊔ l') where
-    field
-      sgf : 1 ≤th m -> Two
-      Gnf : 1 ≤th m -> QCtx n
-      split : Gn ≤G sumG (\ th -> 1≤th-index th Gm *G Gnf th) --(\ th -> sg->rho (sgf th) *G Gnf th)
-      resf : (th : 1 ≤th m) -> Gnf th |-[ sgf th ] vf th
-      eqf : (th : 1 ≤th m) -> let rho = 1≤th-index th Gm in
-                              sg->rho (sgf th) * rho == rho
-  {+-}
-
   infix 3 _|-*[_,_]_
 
   data _|-*[_,_]_ {n d} (G : QCtx n)
@@ -740,17 +662,31 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
            (tr : Gt |-[ sg ] t) (tsr : Gts |-*[ sgs , rhos ] ts) ->
            G |-*[ sg :: sgs , rho :: rhos ] t :: ts
 
-  SubstRes' : forall {m n} -> Subst m n -> Vec Two m -> QCtx m -> QCtx n -> Set (c ⊔ l')
-  SubstRes' {m} {n} vf sgs Gm Gn = Gn |-*[ sgs , Gm ] 1≤th-tabulate vf
+  lift|-*[,] : forall {m n G sgs rhos} {vf : Subst m n} ->
+               G |-*[ sgs , rhos ] 1≤th-tabulate vf -> e0 :: G |-*[ sgs , rhos ] 1≤th-tabulate (punchInNManyVars 1 0 o vf)
+  lift|-*[,] (nil split) = nil (≤-refl :: split)
+  lift|-*[,] (cons eq split tr tsr) =
+    cons eq (≤-reflexive (sym (trans (snd +-identity _) (snd annihil _))) :: split)
+            (punchInNManyVarsRes nil (≤G-refl _) tr)
+            (lift|-*[,] tsr)
 
-  {-+}
-  rho->sg : C -> Two
-  rho->sg = not o floor o (_≤? e0)
+  |-*[,]-id : forall {n} (G : QCtx n) ->
+              G |-*[ replicateVec n tt , G ] 1≤th-tabulate var
+  |-*[,]-id nil = nil nil
+  |-*[,]-id (rho :: G) =
+    cons (snd *-identity rho)
+         (≤G-reflexive (≈G-sym (≈G-trans
+           (snd +-identity _   :: *Gempty rho +G-cong ≈G-refl G)
+           (snd *-identity rho :: fst +G-identity G))))
+         (var (≤G-refl _))
+         (lift|-*[,] (|-*[,]-id G))
 
-  SubstRes'' : forall {m n} -> Subst m n -> QCtx m -> QCtx n -> Set (c ⊔ l')
-  SubstRes'' {m} {n} vf Gm Gn =
-    (th : 1 ≤th m) -> let sg = not (floor (1≤th-index th Gm ≤? e0)) in Gn |-[ sg ] vf th
-  {+-}
+  SubstRes : forall {m n} -> Subst m n -> Vec Two m -> QCtx m -> QCtx n -> Set (c ⊔ l')
+  SubstRes {m} {n} vf sgs Gm Gn = Gn |-*[ sgs , Gm ] 1≤th-tabulate vf
+
+  singleSubstRes : forall {m G G0 G1 sg t} -> G0 |-[ sg ] t -> G ≤G sg->rho sg *G G0 +G G1 ->
+                   SubstRes (singleSubst t) (sg :: replicateVec m tt) (sg->rho sg :: G1) G
+  singleSubstRes {sg = sg} tr split = cons (sg*sg==sg sg) split tr (|-*[,]-id _)
 
   punchInNManyVarsRes* :
     forall {l n m o d sgs rhos} {ts : Vec (Term (l +N m) d) o}
@@ -819,11 +755,11 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
                  Gts  ≤[ from0G sub tsr ]G
                  0G   ≤G-QED
 
-  liftSubstRes' : forall {m n sgs Gm Gn} sg (vf : Subst m n) ->
+  liftSubstRes : forall {m n sgs Gm Gn} sg (vf : Subst m n) ->
                   let rho = sg->rho sg in
-                  SubstRes' vf sgs Gm Gn ->
-                  SubstRes' (liftSubst vf) (sg :: sgs) (rho :: Gm) (rho :: Gn)
-  liftSubstRes' {sgs = sgs} {Gm} {Gn} sg vf vfr =
+                  SubstRes vf sgs Gm Gn ->
+                  SubstRes (liftSubst vf) (sg :: sgs) (rho :: Gm) (rho :: Gn)
+  liftSubstRes {sgs = sgs} {Gm} {Gn} sg vf vfr =
     cons (sg*sg==sg sg) split (var (≤G-refl _)) vfr'
     where
     split : sg->rho sg :: Gn ≤G sg->rho sg *G (sg->rho sg :: 0G) +G (e0 :: Gn)
@@ -847,74 +783,6 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
   weakenRes* sub (nil split) = nil (≤G-trans sub split)
   weakenRes* sub (cons eq split tr tsr) = cons eq (≤G-trans sub split) tr tsr
 
-  weakenRes*Out : forall {m n d G} {ts : Vec (Term n d) m} {sgs rhos rhos'} ->
-                  rhos ≤G rhos' -> G |-*[ sgs , rhos ] ts -> G |-*[ sgs , rhos' ] ts
-  weakenRes*Out nil (nil split) = nil split
-  weakenRes*Out {rhos' = rho' :: rhos'} (le :: sub) (cons eq split tr tsr) = cons {!eq!} {!split!} {!tr!} (weakenRes*Out sub tsr)
-
-  --substituteRes* :
-  --  forall {m n o d sgs sgs' rhos} {ts : Vec (Term m d) o}
-  --  {Gm : QCtx m} {Gn : QCtx n} ->
-  --  vzip (\ sg' rho -> sg->rho sg' * rho) sgs' Gm ≈G Gm ->
-  --  Gm |-*[ sgs , rhos ] ts -> (vf : Subst m n) -> SubstRes' vf sgs' Gm Gn ->
-  --  Gn |-*[ sgs , rhos ] vmap (\ t -> substitute'' t vf) ts
-  --substituteRes* eqs (nil split) vf vfr = nil {!split!}
-  --substituteRes* eqs (cons eq split tr tsr) vf vfr = cons eq {!split!} {!vfr!} {!!}
-
-  {-+}
-  sg*Res :
-    forall {n d G G' sg sg' rho} {t : Term n d} ->
-    rho * sg->rho sg' ≤ sg->rho sg -> G ≤G rho *G G' ->
-    G' |-[ sg' ] t -> G |-[ sg ] t
-  sg*Res {G = G} {G'} {sg} {sg'} {rho} {var th} le split (var sub) =
-    var (
-      G                                ≤[ split ]G
-      rho *G G'                        ≤[ ≤-refl *G-mono sub ]G
-      rho *G varQCtx th (sg->rho sg')  ≤[ ≤G-reflexive (*GvarQCtx rho th (sg->rho sg')) ]G
-      varQCtx th (rho * sg->rho sg')   ≤[ varQCtx-≤ th le ]G
-      varQCtx th (sg->rho sg)          ≤G-QED
-    )
-  sg*Res {G = G} {G'} {rho = rho} le split (app {Ge = Ge} {Gs} split' er sr) =
-    app (
-      G                       ≤[ split ]G
-      rho *G G'               ≤[ ≤-refl *G-mono split' ]G
-      rho *G (Ge +G Gs)       ≤[ ≤G-reflexive (*G-distrib-+G rho Ge Gs) ]G
-      rho *G Ge +G rho *G Gs  ≤G-QED
-        )
-        (sg*Res le (≤G-refl _) er)
-        (sg*Res le (≤G-refl _) sr)
-  sg*Res le split (the sr) = the (sg*Res le split sr)
-  sg*Res le split (lam sr) = lam (sg*Res le ({!le!} :: split) sr)
-  sg*Res le split [ er ] = [ sg*Res le split er ]
-
-  sg*Res' :
-    forall {n d G G' sg sg' rho} {t : Term n d} ->
-    rho * sg->rho sg ≤ sg->rho sg' -> rho *G G ≤G G' ->
-    G' |-[ sg' ] t -> G |-[ sg ] t
-  sg*Res' {G = G} {G'} {sg} {sg'} {rho} {var th} le split (var sub) =
-    var (
-      G                        ≤[ {!!} ]G
-      varQCtx th (sg->rho sg)  ≤G-QED
-    )
-  sg*Res' le split (app split' er sr) = app {!!} (sg*Res' le {!≤G-trans split split'!} er) {!!}
-  sg*Res' le split (the sr) = the (sg*Res' le split sr)
-  sg*Res' {G = G} {G'} {sg} {sg'} {rho} le split (lam sr) =
-    lam (sg*Res' le
-                 (≤G-reflexive (vmap-+V (rho *_) (sg->rho sg :: nil) G))
-                 (weakenRes (le :: split) sr))
-  sg*Res' le split [ er ] = [ sg*Res' le split er ]
-
-  sg*Res'' :
-    forall {n d G G' sg sg' rho} {t : Term n d} ->
-    sg->rho sg ≤ rho * sg->rho sg' -> G ≤G rho *G G' ->
-    G' |-[ sg' ] t -> G |-[ sg ] t
-  sg*Res'' le split (var sub) = var {!!}
-  sg*Res'' le split (app split₁ sr sr₁) = {!!}
-  sg*Res'' le split (the sr) = {!!}
-  sg*Res'' le split (lam sr) = lam (sg*Res'' le (le :: split) sr)
-  sg*Res'' le split [ sr ] = {!!}
-  {+-}
-
   nothingLeft :
     forall {m n d G sgs rhos} {ts : Vec (Term m d) n} ->
     rhos ≤G 0G -> G |-*[ sgs , rhos ] ts -> G ≤G 0G
@@ -927,7 +795,7 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
         0G            ≤G-QED
 
   substSplit : forall {m n vf sgs} {Gm Gem Gsm : QCtx m} {Gn : QCtx n} ->
-               Gm ≤G Gem +G Gsm -> SubstRes' vf sgs Gm Gn ->
+               Gm ≤G Gem +G Gsm -> SubstRes vf sgs Gm Gn ->
                Sg _ \ Gen -> Sg _ \ Gsn -> Gn ≤G Gen +G Gsn
   substSplit {Gm = nil} {nil} {nil} {Gn} nil (nil split) =
     0G , 0G , ≤G-trans split (≤G-reflexive (≈G-sym (fst +G-identity 0G)))
@@ -949,16 +817,6 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
       rhoe *G Gt +G ((Gen +G rhos *G Gt) +G Gsn)  ≈[ ≈G-refl _ +G-cong +G-assoc _ _ _ ]G
       rhoe *G Gt +G (Gen +G (rhos *G Gt +G Gsn))  ≈[ ≈G-sym (+G-assoc _ _ _) ]G
       (rhoe *G Gt +G Gen) +G (rhos *G Gt +G Gsn)  ≈G-QED
-
-  splitSubst : forall {m n vf sgs} {Gm Gem Gsm : QCtx m} {Gn : QCtx n}
-               (splitm : Gm ≤G Gem +G Gsm) (vfr : SubstRes' vf sgs Gm Gn) ->
-               let Gen , Gsn , splitn = substSplit splitm vfr in
-               SubstRes' vf sgs Gem Gen × SubstRes' vf sgs Gsm Gsn
-  splitSubst {Gm = nil} {nil} {nil} {Gn} nil (nil split) =
-    nil (≤G-refl 0G) , nil (≤G-refl 0G)
-  splitSubst {Gm = rho :: Gm} {rhoe :: Gem} {rhos :: Gsm} {Gn} (le :: splitm) (cons eq split tr vfr)
-    with splitSubst splitm vfr
-  ... | vfre , vfrs = cons {!eq!} (≤G-refl _) tr vfre , cons {!!} (≤G-refl _) tr vfrs
 
   module ZeroMaximal (e0-maximal : forall {a} -> e0 ≤ a -> a == e0)
                      (positive : forall {a b} -> a + b == e0 -> a == e0 × b == e0)
@@ -982,13 +840,23 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
     ... | eq0 , eq1 | eqs0 , eqs1 =
       eq0 :: eqs0 , eq1 :: eqs1
 
-    substituteRes' :
+    splitSubst : forall {m n vf sgs} {Gm Gem Gsm : QCtx m} {Gn : QCtx n}
+                 (splitm : Gm ≤G Gem +G Gsm) (vfr : SubstRes vf sgs Gm Gn) ->
+                 let Gen , Gsn , splitn = substSplit splitm vfr in
+                 SubstRes vf sgs Gem Gen × SubstRes vf sgs Gsm Gsn
+    splitSubst {Gm = nil} {nil} {nil} {Gn} nil (nil split) =
+      nil (≤G-refl 0G) , nil (≤G-refl 0G)
+    splitSubst {sgs = sg :: sgs} {Gm = rho :: Gm} {rhoe :: Gem} {rhos :: Gsm} {Gn} (le :: splitm) (cons eq split tr vfr)
+      with splitSubst splitm vfr | splitEq {sg = sg} le eq
+    ... | vfre , vfrs | eqe , eqs = cons eqe (≤G-refl _) tr vfre , cons eqs (≤G-refl _) tr vfrs
+
+    substituteRes :
       forall {m n d sg sgs} {t : Term m d}
       {Gm : QCtx m} {Gn : QCtx n} ->
       vzip (\ rho sg' -> rho * sg->rho sg') Gm sgs ≈G Gm ->
-      Gm |-[ sg ] t -> (vf : Subst m n) -> SubstRes' vf sgs Gm Gn ->
-      Gn |-[ sg ] substitute'' t vf
-    substituteRes' {n = n} {sg = sg} {Gn = Gn} eqs (var {th = th} sub) vf vfr = go th sub vf vfr
+      Gm |-[ sg ] t -> (vf : Subst m n) -> SubstRes vf sgs Gm Gn ->
+      Gn |-[ sg ] substitute t vf
+    substituteRes {n = n} {sg = sg} {Gn = Gn} eqs (var {th = th} sub) vf vfr = go th sub vf vfr
       where
       go : forall {m sg sgs} {Gm : QCtx m} (th : 1 ≤th m) →
            Gm ≤G varQCtx th (sg->rho sg) → (vf : Subst m n) (vfr : Gn |-*[ sgs , Gm ] 1≤th-tabulate vf) →
@@ -1031,88 +899,17 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
                           Gts  ≤G-QED
         in
         go th sub (vf o o') (weakenRes* split' vfr)
-    substituteRes' {sgs = sgs} eqs (app split er sr) vf vfr
+    substituteRes {sgs = sgs} eqs (app split er sr) vf vfr
       with substSplit split vfr | splitSubst split vfr | splitEqs split eqs
     ... | Gen , Gsn , split' | vfre , vfrs | eqse , eqss =
-      app split' (substituteRes' eqse er vf vfre) (substituteRes' eqss sr vf vfrs)
-    substituteRes' eqs (the sr) vf vfr = the (substituteRes' eqs sr vf vfr)
-    substituteRes' {sg = sg} eqs (lam sr) vf vfr =
-      lam (substituteRes' (sg*sg==sg sg :: eqs) sr (liftSubst vf) (liftSubstRes' sg vf vfr))
-    substituteRes' eqs [ er ] vf vfr = [ substituteRes' eqs er vf vfr ]
+      app split' (substituteRes eqse er vf vfre) (substituteRes eqss sr vf vfrs)
+    substituteRes eqs (the sr) vf vfr = the (substituteRes eqs sr vf vfr)
+    substituteRes {sg = sg} eqs (lam sr) vf vfr =
+      lam (substituteRes (sg*sg==sg sg :: eqs) sr (liftSubst vf) (liftSubstRes sg vf vfr))
+    substituteRes eqs [ er ] vf vfr = [ substituteRes eqs er vf vfr ]
 
-    substituteRes :
-      forall {l m d rho sg sg' T} {s : Term (l +N succ m) d} {t : Term m chk} ->
-      {Gm Gt : QCtx m} (Gl : QCtx l) -> sg->rho sg' * rho == rho ->
-      Gl +V rho :: Gm |-[ sg ] s -> Gt |-[ sg' ] t ->
-      Gl +V (Gm +G rho *G Gt) |-[ sg ] substitute l T s t
-    substituteRes {l = l} {m} {rho = rho} {sg} {t = t} {Gm = Gm} {Gt} Gl s'r=r (var {th = th} sub) tr
-      with 1≤thToNat th ==Nat? l
-    ... | yes eq rewrite VZip== (varQCtx-3parts l th (sg->rho sg) eq) =
-      the (punchInNManyVarsRes {Gn = Gl} nil (takeVZip Gl 0G sub) {!eq!})
-      where
-      w : forall {t : Term m chk} sg' -> rho *G Gt |-[ sg' ] t -> Gm +G rho *G Gt |-[ sg' ] t
-      w sg' = weakenRes
-        (Gm +G rho *G Gt
-           ≤[ tailVZip (dropVZip Gl 0G sub) +G-mono ≤G-refl (rho *G Gt) ]G
-         0G +G rho *G Gt
-           ≤[ ≤G-reflexive (fst +G-identity _) ]G
-         rho *G Gt  ≤G-QED)
-
-      tr' : forall {t : Term m chk} sg' -> rho ≤ sg->rho sg' -> Gt |-[ sg' ] t -> Gm +G rho *G Gt |-[ sg' ] t
-      tr' tt le tr = w tt (weakenRes (rho *G Gt  ≤[ le *G-mono ≤G-refl Gt ]G
-                                      e1 *G Gt   ≤[ ≤G-reflexive (fst *G-identity Gt) ]G
-                                      Gt         ≤G-QED) tr)
-      tr' ff le tr = w ff (weakenRes (rho *G Gt  ≤[ ≤-refl {rho} *G-mono sg≤0->G≤0 tr ≤-refl ]G
-                                      rho *G 0G  ≤[ {!!} ]G
-                                      0G  ≤[ {!!} ]G
-                                      Gt  ≤G-QED) tr)
-    ... | no neq rewrite VZip== (varQCtx-part l th (sg->rho sg))
-      with 1≤th-part l th | 1≤th-part-toNat l th
-    ... | inl thl | eq = var {!punchOutN l th neq!}
-    ... | inr (os thsm) | eq rewrite +N-zero l = Zero-elim (neq eq)
-    ... | inr (o' thm) | eq = var {!!}
-    substituteRes {l} {m} {rho = rho} {Gm = Gm} {Gt = Gt} Gl s'r=r (app {Ge = Ge} {Gs = Gs} split er sr) tr
-      rewrite sym (VZip== (takeDropVec== l Ge))
-            | sym (VZip== (takeDropVec== l Gs))
-            | sym (VZip== (headTailVec== (dropVec l Ge)))
-            | sym (VZip== (headTailVec== (dropVec l Gs)))
-      with takeVec l Ge
-         | takeVec l Gs
-         | headVec (dropVec l Ge)
-         | headVec (dropVec l Gs)
-         | tailVec (dropVec l Ge)
-         | tailVec (dropVec l Gs)
-    ... | Gel | Gsl | rhoe | rhos | Gem | Gsm
-      rewrite VZip== (vzip-+V _+_ Gel Gsl (rhoe :: Gem) (rhos :: Gsm))
-      with tailVZip (dropVZip Gl (Gel +G Gsl) split)
-           +G-mono headVZip (dropVZip Gl (Gel +G Gsl) split) *G-mono (≤G-refl Gt)
-    ... | split'sm
-    -- should all be a rewrite, but Agda doesn't like that  vvv
-      with VZip==
-           ((Gem +G Gsm) +G (rhoe + rhos) *G Gt         ≈[ ≈G-refl _ +G-cong *G-distrib-+ Gt rhoe rhos ]G
-            (Gem +G Gsm) +G (rhoe *G Gt +G rhos *G Gt)  ≈[ +G-assoc Gem Gsm _ ]G
-            Gem +G (Gsm +G (rhoe *G Gt +G rhos *G Gt))  ≈[ ≈G-refl _ +G-cong ≈G-sym (+G-assoc Gsm _ _) ]G
-            Gem +G ((Gsm +G rhoe *G Gt) +G rhos *G Gt)  ≈[ ≈G-refl _ +G-cong (+G-comm Gsm _ +G-cong ≈G-refl _) ]G
-            Gem +G ((rhoe *G Gt +G Gsm) +G rhos *G Gt)  ≈[ ≈G-refl _ +G-cong +G-assoc _ Gsm _ ]G
-            Gem +G (rhoe *G Gt +G (Gsm +G rhos *G Gt))  ≈[ ≈G-sym (+G-assoc Gem _ _) ]G
-            (Gem +G rhoe *G Gt) +G (Gsm +G rhos *G Gt)  ≈G-QED)
-    ... | eq
-      with (Gem +G Gsm) +G (rhoe + rhos) *G Gt
-    ... | zzz with eq
-    ... | refl
-      with _+VZip_ (takeVZip Gl (Gel +G Gsl) split) split'sm
-    ... | split'
-      rewrite sym (VZip== (vzip-+V _+_ Gel Gsl (Gem +G rhoe *G Gt) (Gsm +G rhos *G Gt)))
-      =
-      app split' (substituteRes Gel {!!} er tr) (substituteRes Gsl {!!} sr tr)
-    substituteRes Gl s'r=r (the sr) tr = the (substituteRes Gl s'r=r sr tr)
-    substituteRes {sg = sg} Gl s'r=r (lam sr) tr =
-      lam (substituteRes (sg->rho sg :: Gl) s'r=r sr tr)
-    substituteRes Gl s'r=r [ er ] tr = [ substituteRes Gl s'r=r er tr ]
-
-    {-+}
-    ~~>-preserves-res : forall {n d G sg} {t u : Term n d} {tr : G |-[ sg ] t} ->
-                        t ~~> u -> G |-[ sg ] u
-    ~~>-preserves-res {t = .(app (the (S ~> T) (lam s0)) s1)} {.(the T (substitute (os (z≤th _)) S s0 s1))} {app split (the (lam s0r)) s1r} (beta S T s0 s1) = the (substitute-res split s0r s1r)
-    ~~>-preserves-res {t = .([ the S s ])} {.s} {[ the tr ]} (upsilon S s) = tr
-    {+-}
+    ~~>-preservesRes : forall {n d G sg} {t u : Term n d} (tr : G |-[ sg ] t) ->
+                       t ~~> u -> G |-[ sg ] u
+    ~~>-preservesRes {sg = sg} (app split (the (lam s0r)) s1r) (beta S T s0 s1) =
+      the (substituteRes {sgs = sg :: replicateVec _ tt} (sg*sg==sg sg :: {!mapVZip!}) s0r _ (singleSubstRes (the {S = S} s1r) {!!}))
+    ~~>-preservesRes [ the sr ] (upsilon S s) = sr
