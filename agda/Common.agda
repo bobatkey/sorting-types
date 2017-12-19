@@ -17,6 +17,10 @@ case x return B of f = f x
 case_of_ : forall {a b} {A : Set a} {B : Set b} (x : A) -> (A -> B) -> B
 case x of f = f x
 
+_<s>_ : forall {a b c} {A : Set a} {B : A -> Set b} {C : (x : A) -> B x -> Set c} ->
+        (f : (x : A) (y : B x) -> C x y) -> (g : (x : A) -> B x) -> ((x : A) -> C x (g x))
+(f <s> g) x = f x (g x)
+
 infixr 1 _=[_]=_
 infixr 2 _QED
 

@@ -42,7 +42,7 @@ open DecLE _≤?_
 open ZeroMaximal e0-maximal positive
 
 id-s : forall {n} -> Term n chk
-id-s = lam [ var (os (z≤th _)) ]
+id-s = lam [ var zeroth ]
 
 id-t : forall {n} (D : Ctx n) S -> D |- S ~> S ∋ id-s
 id-t D S with S ==QTy? S | inspect (checkType D (S ~> S)) id-s
@@ -174,7 +174,7 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   punchUp a f (os i) = a
   punchUp a f (o' i) = f i
 
-  elimUnused : forall {n} {M : BCIs (succ n)} -> os (z≤th n) ∉s M -> BCIs n
+  elimUnused : forall {n} {M : BCIs (succ n)} -> zeroth ∉s M -> BCIs n
   elimUnused {M = vars (os y)} (vars neq) = Zero-elim (neq (cong os (z≤th-unique _ y)))
   elimUnused {M = vars (o' y)} (vars neq) = vars y
   elimUnused Bs = Bs
@@ -182,7 +182,7 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   elimUnused Is = Is
   elimUnused (nonl ·s nonr) = elimUnused nonl ·s elimUnused nonr
 
-  elimUnusedEq : forall {n} {M : BCIs (succ n)} (non : os (z≤th n) ∉s M) f a ->
+  elimUnusedEq : forall {n} {M : BCIs (succ n)} (non : zeroth ∉s M) f a ->
                  ⟦ elimUnused non ⟧ f ≈ ⟦ M ⟧ (punchUp a f)
   elimUnusedEq {M = vars (os y)} (vars neq) f a = aboutZero \ b -> ⟦ Zero-elim b ⟧ f ≈ a
   elimUnusedEq {M = vars (o' y)} (vars neq) f a = refl-≈
@@ -191,7 +191,7 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   elimUnusedEq Is f a = refl-≈
   elimUnusedEq (nonl ·s nonr) f a = elimUnusedEq nonl f a ·-cong elimUnusedEq nonr f a
 
-  elimUnusedUnused : forall {n} {M : BCIs (succ n)} (non : os (z≤th n) ∉s M)
+  elimUnusedUnused : forall {n} {M : BCIs (succ n)} (non : zeroth ∉s M)
                      {x} -> o' x ∉s M -> x ∉s elimUnused non
   elimUnusedUnused {M = vars (os y)} (vars _) nin = aboutZero \ b -> _ ∉s Zero-elim b
   elimUnusedUnused {n} {vars (o' y)} (vars _) {x} (vars neq) = vars (neq o cong o')
@@ -201,7 +201,7 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   elimUnusedUnused (nonl ·s nonr) (ninl ·s ninr) =
     elimUnusedUnused nonl ninl ·s elimUnusedUnused nonr ninr
 
-  elimUnusedUsed : forall {n} {M : BCIs (succ n)} (non : os (z≤th n) ∉s M)
+  elimUnusedUsed : forall {n} {M : BCIs (succ n)} (non : zeroth ∉s M)
                    {x} -> o' x ∈!s M -> x ∈!s elimUnused non
   elimUnusedUsed (vars neq) vars = vars
   elimUnusedUsed Bs ()
@@ -212,12 +212,12 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   elimUnusedUsed (nonl ·s nonr) (nin ·s-r one) =
     elimUnusedUnused nonl nin ·s-r elimUnusedUsed nonr one
 
-  elimUsed : forall {n} {M : BCIs (succ n)} -> os (z≤th n) ∈!s M -> BCIs n
+  elimUsed : forall {n} {M : BCIs (succ n)} -> zeroth ∈!s M -> BCIs n
   elimUsed vars = Is
   elimUsed (uni ·s-l non) = Cs ·s elimUsed uni ·s elimUnused non
   elimUsed (non ·s-r uni) = Bs ·s elimUnused non ·s elimUsed uni
 
-  elimUsedEq : forall {n} {M : BCIs (succ n)} (uni : os (z≤th n) ∈!s M) f a ->
+  elimUsedEq : forall {n} {M : BCIs (succ n)} (uni : zeroth ∈!s M) f a ->
                    ⟦ elimUsed uni ⟧ f · a ≈ ⟦ M ⟧ (punchUp a f)
   elimUsedEq vars f a = Ix a
   elimUsedEq (uni ·s-l non) f a =
@@ -225,7 +225,7 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   elimUsedEq (non ·s-r uni) f a =
     trans-≈ (Bxyz _ _ a) (elimUnusedEq non f a ·-cong elimUsedEq uni f a)
 
-  elimUsedUnused : forall {n} {M : BCIs (succ n)} (uni : os (z≤th n) ∈!s M)
+  elimUsedUnused : forall {n} {M : BCIs (succ n)} (uni : zeroth ∈!s M)
                        {x} -> o' x ∉s M -> x ∉s elimUsed uni
   elimUsedUnused vars nin = Is
   elimUsedUnused (uni ·s-l non) (ninl ·s ninr) =
@@ -233,7 +233,7 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   elimUsedUnused (non ·s-r uni) (ninl ·s ninr) =
     Bs ·s elimUnusedUnused non ninl ·s elimUsedUnused uni ninr
 
-  elimUsedUsed : forall {n} {M : BCIs (succ n)} (uni : os (z≤th n) ∈!s M)
+  elimUsedUsed : forall {n} {M : BCIs (succ n)} (uni : zeroth ∈!s M)
                  {x} -> o' x ∈!s M -> x ∈!s elimUsed uni
   elimUsedUsed vars ()
   elimUsedUsed (uni ·s-l non) (one ·s-l nin) =
@@ -251,167 +251,250 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
                                                         ; ω# -> One
                                                         }
 
-  -- UsageMatch must be proven intrinsically so that the induction step at lam works
-  toBCIs : forall {n d G} {t : Term n d} -> G |-[ tt ] t -> Sg (BCIs n) \ M -> UsageMatch G M
-  toBCIs {G = G} {var x} (var sub)  = vars x , usageMatch
-    where
-    usageMatch : UsageMatch G (vars x)
-    usageMatch y with y ==th? x
-    usageMatch .x | yes refl with 1≤th-indexVZip x sub
-    ... | a rewrite 1≤th-index-varQCtx {rho = 1#} x with 1≤th-index x G
-    usageMatch _ | yes refl | ≤01ω-refl | .1# = vars
-    usageMatch _ | yes refl | ω-bot | .ω# = <>
-    usageMatch y | no neq with 1≤th-indexVZip y sub
-    ... | ay rewrite 1≤th-index-/=-varQCtx neq 1# with 1≤th-index y G
-    usageMatch y | no neq | ≤01ω-refl | .0# = vars neq
-    usageMatch y | no neq | ω-bot | .ω# = <>
-  toBCIs {G = G} (app {Ge = Ge} {Gs} split er sr) with toBCIs er | toBCIs sr
-  ... | Me , pe | Ms , ps = Me ·s Ms , usageMatch
-    where
-    usageMatch : UsageMatch G (Me ·s Ms)
-    usageMatch x with 1≤th-indexVZip x split
-    ... | a rewrite 1≤th-index-vzip x _+01ω_ Ge Gs with 1≤th-index x G
-    usageMatch x | ≤01ω-refl | .(1≤th-index x _ +01ω 1≤th-index x _)
-      with 1≤th-index x Ge | 1≤th-index x Gs | pe x | ps x
-    usageMatch x | ≤01ω-refl | .(1≤th-index x Ge +01ω 1≤th-index x Gs) | 0# | 0# | pex | psx = pex ·s psx
-    usageMatch x | ≤01ω-refl | .(1≤th-index x Ge +01ω 1≤th-index x Gs) | 0# | 1# | pex | psx = pex ·s-r psx
-    usageMatch x | ≤01ω-refl | .(1≤th-index x Ge +01ω 1≤th-index x Gs) | 0# | ω# | pex | psx = <>
-    usageMatch x | ≤01ω-refl | .(1≤th-index x Ge +01ω 1≤th-index x Gs) | 1# | 0# | pex | psx = pex ·s-l psx
-    usageMatch x | ≤01ω-refl | .(1≤th-index x Ge +01ω 1≤th-index x Gs) | 1# | 1# | pex | psx = <>
-    usageMatch x | ≤01ω-refl | .(1≤th-index x Ge +01ω 1≤th-index x Gs) | 1# | ω# | pex | psx = <>
-    usageMatch x | ≤01ω-refl | .(1≤th-index x Ge +01ω 1≤th-index x Gs) | ω# | _ | pex | psx = <>
-    usageMatch x | ω-bot | .ω# = <>
+  toBCIs : forall {n d G} {t : Term n d} -> G |-[ tt ] t -> BCIs n
+  toBCIsUsage : forall {n d G} {t : Term n d}
+                (tr : G |-[ tt ] t) -> UsageMatch G (toBCIs tr)
+
+  toBCIs {t = var i} (var sub) = vars i
+  toBCIs (app split er sr) = toBCIs er ·s toBCIs sr
   toBCIs (the sr) = toBCIs sr
-  toBCIs {G = G} (lam sr) with toBCIs sr
-  ... | M , p = elimUsed {M = M} (p (os (z≤th _))) , usageMatch
-    where
-    usageMatch : UsageMatch G (elimUsed (p (os (z≤th _))))
-    usageMatch x with 1≤th-index x G | p (o' x)
-    usageMatch x | 0# | po'x = elimUsedUnused (p (os (z≤th _))) po'x
-    usageMatch x | 1# | po'x = elimUsedUsed (p (os (z≤th _))) po'x
-    usageMatch x | ω# | po'x = <>
+  toBCIs (lam sr) = elimUsed (toBCIsUsage sr zeroth)
   toBCIs [ er ] = toBCIs er
 
+  toBCIsUsage {G = G} (var {i} sub) j with j ==th? i | 1≤th-indexVZip j sub
+  toBCIsUsage {G = G} (var {.j} sub) j | yes refl | le
+    rewrite 1≤th-index-varQCtx {rho = 1#} j with 1≤th-index j G
+  toBCIsUsage {G = G} (var {.j} sub) j | yes refl | () | 0#
+  ... | 1# = vars
+  ... | ω# = <>
+  toBCIsUsage {G = G} (var {i} sub) j | no neq | le
+    rewrite 1≤th-index-/=-varQCtx neq 1# with 1≤th-index j G
+  ... | 0# = vars neq
+  toBCIsUsage {G = G} (var {i} sub) j | no neq | () | 1#
+  ... | ω# = <>
+  toBCIsUsage {G = G} (app {Ge = Ge} {Gs} split er sr) i
+    with 1≤th-indexVZip i split
+  ... | a rewrite 1≤th-index-vzip i _+01ω_ Ge Gs with 1≤th-index i G
+  toBCIsUsage {G = G} (app {Ge} {Gs} split er sr) i
+      | ≤01ω-refl | .(1≤th-index i Ge +01ω 1≤th-index i Gs)
+    with 1≤th-index i Ge | 1≤th-index i Gs | toBCIsUsage er i | toBCIsUsage sr i
+  ... | 0# | 0# | eu | su = eu ·s su
+  ... | 0# | 1# | eu | su = eu ·s-r su
+  ... | 0# | ω# | eu | su = <>
+  ... | 1# | 0# | eu | su = eu ·s-l su
+  ... | 1# | 1# | eu | su = <>
+  ... | 1# | ω# | eu | su = <>
+  ... | ω# | _ | eu | su = <>
+  toBCIsUsage {G = G} (app {Ge} {Gs} split er sr) i | ω-bot | .ω# = <>
+  toBCIsUsage (the sr) = toBCIsUsage sr
+  toBCIsUsage {G = G} (lam sr) i
+    with 1≤th-index i G | toBCIsUsage sr zeroth | toBCIsUsage sr (o' i)
+  ... | 0# | h | t = elimUsedUnused h t
+  ... | 1# | h | t = elimUsedUsed h t
+  ... | ω# | h | t = <>
+  toBCIsUsage [ er ] = toBCIsUsage er
+
   toBCI : forall {n d G} {t : Term n d} -> G |-[ tt ] t -> (1 ≤th n -> A) -> A
-  toBCI tr f = ⟦ fst (toBCIs tr) ⟧ f
+  toBCI tr f = ⟦ toBCIs tr ⟧ f
+
+
+  -- Typed BCI
+
+  infix 4 _|-_::_
+  data _|-_::_ {n} (D : Ctx n) : BCIs n -> QTy -> Set where
+    vars : forall i -> D |- vars i :: 1≤th-index i D
+    Bs : forall {S T U} -> D |- Bs :: (T ~> U) ~> (S ~> T) ~> (S ~> U)
+    Cs : forall {S T U} -> D |- Cs :: (S ~> T ~> U) ~> (T ~> S ~> U)
+    Is : forall {S} -> D |- Is :: S ~> S
+    _·s_ : forall {S T a b} ->
+           D |- a :: S ~> T -> D |- b :: S -> D |- a ·s b :: T
+
+  elimUnusedTy : forall {n D S T} {M : BCIs (succ n)} (non : zeroth ∉s M) ->
+                 S :: D |- M :: T -> D |- elimUnused non :: T
+  elimUnusedTy (vars neq) (vars (os i)) rewrite z≤th-unique i (z≤th _) =
+    Zero-elim (neq refl)
+  elimUnusedTy (vars neq) (vars (o' i)) = vars i
+  elimUnusedTy Bs Bs = Bs
+  elimUnusedTy Cs Cs = Cs
+  elimUnusedTy Is Is = Is
+  elimUnusedTy (Mnon ·s Nnon) (Mt ·s Nt) =
+    elimUnusedTy Mnon Mt ·s elimUnusedTy Nnon Nt
+
+  elimUsedTy : forall {n D S T} {M : BCIs (succ n)} (uni : zeroth ∈!s M) ->
+               S :: D |- M :: T -> D |- elimUsed uni :: S ~> T
+  elimUsedTy vars (vars .zeroth) = Is
+  elimUsedTy (uni ·s-l non) (Mt ·s Nt) =
+    Cs ·s elimUsedTy uni Mt ·s elimUnusedTy non Nt
+  elimUsedTy (non ·s-r uni) (Mt ·s Nt) =
+    Bs ·s elimUnusedTy non Mt ·s elimUsedTy uni Nt
+
+  toBCIsTySyn : forall {n G D S} {e : Term n syn} ->
+                (er : G |-[ tt ] e) -> D |- e ∈ S -> D |- toBCIs er :: S
+  toBCIsTyChk : forall {n G D S} {s : Term n chk} ->
+                (sr : G |-[ tt ] s) -> D |- S ∋ s -> D |- toBCIs sr :: S
+
+  toBCIsTySyn (var sub) (var {i}) = vars i
+  toBCIsTySyn (app split er sr) (app et st) =
+    toBCIsTySyn er et ·s toBCIsTyChk sr st
+  toBCIsTySyn (the sr) (the st) = toBCIsTyChk sr st
+  toBCIsTyChk (lam sr) (lam st) =
+    elimUsedTy (toBCIsUsage sr zeroth) (toBCIsTyChk sr st)
+  toBCIsTyChk [ er ] [ et ] = toBCIsTySyn er et
 
 
   -- Semantics
 
-  OneS : Setoid _ _
-  OneS = record
-    { C = One
-    ; setoidOver = record
-      { _≈_ = \ _ _ -> One
-      ; isSetoid = record
-        { refl = <>
-        ; sym = λ _ → <>
-        ; trans = λ _ _ → <>
-        }
-      }
-    }
+  infix 4 [_]T_≈_ [_]D_≈_
 
-  [[_]]T : QTy -> Setoid _ _
-  [[ BASE ]]T = OneS
-  [[ S ~> T ]]T = PiS [[ S ]]T (unindexed [[ T ]]T)
+  [[_]]T : QTy -> Set
+  [_]T_≈_ : forall A (x y : [[ A ]]T) -> Set
 
-  [[_]]D : forall {n} -> Ctx n -> Setoid lzero lzero
-  [[ nil ]]D = OneS
-  [[ T :: D ]]D = SgS [[ T ]]T (unindexed [[ D ]]D)
+  [[ BASE ]]T = One
+  [[ S ~> T ]]T = Sg ([[ S ]]T -> [[ T ]]T) \ f ->
+                  forall x y -> [ S ]T x ≈ y -> [ T ]T f x ≈ f y
 
-  [[_]]et : forall {n e T} {D : Ctx n} -> D |- e ∈ T ->
-           Setoid.C (PiS [[ D ]]D (unindexed [[ T ]]T))
-  [[_]]st : forall {n s T} {D : Ctx n} -> D |- T ∋ s ->
-           Setoid.C (PiS [[ D ]]D (unindexed [[ T ]]T))
+  [ BASE ]T x ≈ y = One
+  [ S ~> T ]T (fx , cx) ≈ (fy , cy) =
+    forall x y -> [ S ]T x ≈ y -> [ T ]T fx x ≈ fy y
 
-  [[ var {th} ]]et = go th
-    where
-    go : forall {n D} (th : 1 ≤th n) -> PiE [[ D ]]D (unindexed [[ 1≤th-index th D ]]T)
-    go {D = T :: D} (os th) = record
-      { _$E_ = \ { (t , d) -> t }
-      ; _$E=_ = \ { (teq , deq) -> teq }
-      }
-    go {D = T :: D} (o' th) = record
-      { _$E_ = \ { (t , d) -> go th $E d }
-      ; _$E=_ = \ { (teq , deq) -> go th $E= deq }
-      }
-  [[ app et st ]]et = record
-    { _$E_ = \ d -> ([[ et ]]et $E d) $E ([[ st ]]st $E d)
-    ; _$E=_ = \ deq -> ([[ et ]]et $E= deq) ([[ st ]]st $E= deq)
-    }
-  [[ the st ]]et = [[ st ]]st
-  [[_]]st {D = D} (lam st) = record
-    { _$E_ = \ d -> record
-      { _$E_ = \ s -> [[ st ]]st $E (s , d)
-      ; _$E=_ = \ seq -> [[ st ]]st $E= (seq , Setoid.refl [[ D ]]D)
-      }
-    ; _$E=_ = \ deq seq -> [[ st ]]st $E= (seq , deq)
-    }
-  [[ [ et ] ]]st = [[ et ]]et
+  infixl 6 _[$]_
+  _[$]_ : forall {S T} -> [[ S ~> T ]]T -> [[ S ]]T -> [[ T ]]T
+  f [$] x = fst f x
+
+  refl-T≈ : forall {T} x -> [ T ]T x ≈ x
+  refl-T≈ {BASE} x = <>
+  refl-T≈ {S ~> T} (fx , cx) x y = cx x y
+
+  trans-T≈ : forall {T} x y z -> [ T ]T x ≈ y -> [ T ]T y ≈ z -> [ T ]T x ≈ z
+  trans-T≈ {BASE} x y z xy yz = <>
+  trans-T≈ {S ~> T} x y z xy yz a b ab =
+    trans-T≈ (x [$] a) (y [$] a) (z [$] b) (xy a a (refl-T≈ a)) (yz a b ab)
+
+  [[_]]D : forall {n} -> Ctx n -> Set
+  [[ nil ]]D = One
+  [[ T :: D ]]D = [[ T ]]T × [[ D ]]D
+
+  [_]D_≈_ : forall {n} (D : Ctx n) (x y : [[ D ]]D) -> Set
+  [ nil ]D x ≈ y = One
+  [ T :: D ]D (tx , dx) ≈ (ty , dy) = [ T ]T tx ≈ ty × [ D ]D dx ≈ dy
+
+  refl-D≈ : forall {n} {D : Ctx n} x -> [ D ]D x ≈ x
+  refl-D≈ {D = nil} <> = <>
+  refl-D≈ {D = T :: D} (x , d) = refl-T≈ x , refl-D≈ d
+
+  [[_]]i : forall {n} (i : 1 ≤th n) {D} -> [[ D ]]D -> [[ 1≤th-index i D ]]T
+  [[ os i ]]i {T :: D} (t , d) = t
+  [[ o' i ]]i {T :: D} (t , d) = [[ i ]]i d
+
+  [[_]]i-D≈ : forall {n} (i : 1 ≤th n) {D} (dx dy : [[ D ]]D) ->
+              [ D ]D dx ≈ dy -> [ 1≤th-index i D ]T [[ i ]]i dx ≈ [[ i ]]i dy
+  [[ os i ]]i-D≈ {T :: D} _ _ (t , d) = t
+  [[ o' i ]]i-D≈ {T :: D} (tx , dx) (ty , dy) (t , d) = [[ i ]]i-D≈ dx dy d
+
+  [[_]]e : forall {n D S} {e : Term n syn} -> D |- e ∈ S -> [[ D ]]D -> [[ S ]]T
+  [[_]]s : forall {n D S} {s : Term n chk} -> D |- S ∋ s -> [[ D ]]D -> [[ S ]]T
+  [[_]]e-D≈ : forall {n D S} {e : Term n syn} (et : D |- e ∈ S)
+              dx dy -> [ D ]D dx ≈ dy -> [ S ]T [[ et ]]e dx ≈ [[ et ]]e dy
+  [[_]]s-D≈ : forall {n D S} {s : Term n chk} (st : D |- S ∋ s)
+              dx dy -> [ D ]D dx ≈ dy -> [ S ]T [[ st ]]s dx ≈ [[ st ]]s dy
+
+  [[ var {i} ]]e = [[ i ]]i
+  [[ app et st ]]e d = [[ et ]]e d [$] [[ st ]]s d
+  [[ the st ]]e = [[ st ]]s
+  [[ lam st ]]s d = (\ x -> [[ st ]]s (x , d))
+                  , \ x y xy -> [[ st ]]s-D≈ (x , d) (y , d) (xy , refl-D≈ d)
+  [[ [ et ] ]]s = [[ et ]]e
+
+  [[ var {i} ]]e-D≈ = [[ i ]]i-D≈
+  [[ app et st ]]e-D≈ dx dy d =
+    ([[ et ]]e-D≈ dx dy d) ([[ st ]]s dx) ([[ st ]]s dy) ([[ st ]]s-D≈ dx dy d)
+  [[ the st ]]e-D≈ = [[ st ]]s-D≈
+  [[ lam st ]]s-D≈ dx dy d sx sy s = [[ st ]]s-D≈ (sx , dx) (sy , dy) (s , d)
+  [[ [ et ] ]]s-D≈ = [[ et ]]e-D≈
+
+  [[_]]c : forall {n D S} {a : BCIs n} -> D |- a :: S -> [[ D ]]D -> [[ S ]]T
+  [[ vars i ]]c = [[ i ]]i
+  [[ Bs ]]c d = (\ s -> (\ t -> (\ u -> s [$] (t [$] u))
+                               , \ ux uy u -> (refl-T≈ s) (t [$] ux) (t [$] uy)
+                                                          ((refl-T≈ t) ux uy u))
+                       , \ tx ty t ux uy u -> (refl-T≈ s) (tx [$] ux) (ty [$] uy)
+                                                          (t ux uy u))
+               , \ sx sy s tx ty t ux uy u -> s (tx [$] ux) (ty [$] uy)
+                                                (t ux uy u)
+  [[ Cs ]]c d = (\ s -> (\ t -> (\ u -> s [$] u [$] t)
+                               , \ ux uy u -> (refl-T≈ s) ux uy u
+                                                          t  t  (refl-T≈ t))
+                       , \ tx ty t ux uy u -> (refl-T≈ s) ux uy u tx ty t)
+               , \ sx sy s tx ty t ux uy u -> s ux uy u tx ty t
+  [[ Is ]]c d = (\ s -> s) , \ sx sy s -> s
+  [[ at ·s bt ]]c d = [[ at ]]c d [$] [[ bt ]]c d
+
+  elimUnused-T≈ :
+    forall {n D S T} {M : BCIs (succ n)} (non : zeroth ∉s M)
+    (Mt : S :: D |- M :: T) (s : [[ S ]]T) (d : [[ D ]]D) ->
+    [ T ]T [[ Mt ]]c (s , d) ≈ [[ elimUnusedTy non Mt ]]c d
+  elimUnused-T≈ (vars neq) (vars (os i)) s d rewrite z≤th-unique i (z≤th _) =
+    Zero-elim (neq refl)
+  elimUnused-T≈ (vars neq) (vars (o' i)) s d = refl-T≈ ([[ i ]]i d)
+  elimUnused-T≈ Bs Bs z d sx sy s tx ty t ux uy u =
+    s (tx [$] ux) (ty [$] uy) (t ux uy u)
+  elimUnused-T≈ Cs Cs z d sx sy s tx ty t ux uy u = s ux uy u tx ty t
+  elimUnused-T≈ Is Is z d sx sy s = s
+  elimUnused-T≈ (Mnon ·s Nnon) (Mt ·s Nt) s d =
+    (elimUnused-T≈ Mnon Mt s d) ([[ Nt ]]c (s , d))
+                                ([[ elimUnusedTy Nnon Nt ]]c d)
+                                (elimUnused-T≈ Nnon Nt s d)
+
+  elimUsed-T≈ :
+    forall {n D S T} {M : BCIs (succ n)} (uni : zeroth ∈!s M)
+    (Mt : S :: D |- M :: T) (s : [[ S ]]T) (d : [[ D ]]D) ->
+    [ T ]T [[ Mt ]]c (s , d) ≈ [[ elimUsedTy uni Mt ]]c d [$] s
+  elimUsed-T≈ vars (vars .zeroth) s d = refl-T≈ s
+  elimUsed-T≈ (uni ·s-l non) (Mt ·s Nt) s d =
+    (elimUsed-T≈ uni Mt s d) ([[ Nt ]]c (s , d))
+                             ([[ elimUnusedTy non Nt ]]c d)
+                             (elimUnused-T≈ non Nt s d)
+  elimUsed-T≈ (non ·s-r uni) (Mt ·s Nt) s d =
+    (elimUnused-T≈ non Mt s d) ([[ Nt ]]c (s , d))
+                               ([[ elimUsedTy uni Nt ]]c d [$] s)
+                               (elimUsed-T≈ uni Nt s d)
+
+  toBCIs-T≈Syn :
+    forall {n G D S} {e : Term n syn} (er : G |-[ tt ] e) (et : D |- e ∈ S) d ->
+    [ S ]T [[ et ]]e d ≈ [[ toBCIsTySyn er et ]]c d
+  toBCIs-T≈Chk :
+    forall {n G D S} {s : Term n chk} (sr : G |-[ tt ] s) (st : D |- S ∋ s) d ->
+    [ S ]T [[ st ]]s d ≈ [[ toBCIsTyChk sr st ]]c d
+
+  toBCIs-T≈Syn (var sub) (var {i}) d = refl-T≈ ([[ i ]]i d)
+  toBCIs-T≈Syn (app split er sr) (app et st) d =
+    (toBCIs-T≈Syn er et d) ([[ st ]]s d) ([[ toBCIsTyChk sr st ]]c d)
+                           (toBCIs-T≈Chk sr st d)
+  toBCIs-T≈Syn (the sr) (the st) d = toBCIs-T≈Chk sr st d
+  toBCIs-T≈Chk (lam sr) (lam st) d sx sy s =
+    trans-T≈ ([[ st ]]s (sx , d))
+             ([[ toBCIsTyChk sr st ]]c (sx , d))
+             ([[ elimUsedTy (toBCIsUsage sr zeroth)
+                            (toBCIsTyChk sr st) ]]c d [$] sy)
+             (toBCIs-T≈Chk sr st (sx , d))
+             (trans-T≈ ([[ toBCIsTyChk sr st ]]c (sx , d))
+                       ([[ elimUsedTy (toBCIsUsage sr zeroth)
+                                      (toBCIsTyChk sr st) ]]c d [$] sx)
+                       ([[ elimUsedTy (toBCIsUsage sr zeroth)
+                                      (toBCIsTyChk sr st) ]]c d [$] sy)
+                       (elimUsed-T≈ (toBCIsUsage sr zeroth)
+                                    (toBCIsTyChk sr st) sx d)
+                       ((refl-T≈ ([[ elimUsedTy (toBCIsUsage sr zeroth)
+                                                (toBCIsTyChk sr st) ]]c d))
+                                 sx sy s))
+  toBCIs-T≈Chk [ er ] [ et ] d = toBCIs-T≈Syn er et d
 
   _,A_ : A -> A -> A
   a ,A b = C · (C · I · a) · b
-
-  --record AssemblyOver {g} r (G : Set g) : Set (a ⊔ g ⊔ lsuc r) where
-  --  field
-  --    _|=_ : A -> G -> Set r
-  --    realiser : G -> A
-  --    realises : forall {g} -> realiser g |= g
-
-  --record Assembly g r : Set (a ⊔ lsuc (g ⊔ r)) where
-  --  field
-  --    [|_|] : Set g
-  --    assemblyOver : AssemblyOver r [|_|]
-  --  open AssemblyOver assemblyOver renaming (_|=_ to [_]_|=_) public
-
-  --open Assembly public
-
-  --record _=A>_ {g r} (G0 G1 : Assembly g r) : Set (a ⊔ g ⊔ r) where
-  --  field
-  --    f : [| G0 |] -> [| G1 |]
-  --    af : A
-  --    realises : forall {g ag} -> [ G0 ] ag |= g -> [ G1 ] af · ag |= f g
 
 module WithBCI! {a l} (S : Setoid a l) (Alg : BCI! S) where
   open Setoid S renaming (C to A; refl to refl-≈; sym to sym-≈; trans to trans-≈)
   open BCI! Alg
   open WithBCI S bci
 
-  --qTyAssembly : QTy -> 01ω -> Assembly _ _
-  --qTyAssembly T 0# = record
-  --  { [|_|] = {!One!}
-  --  ; assemblyOver = {!!}
-  --  }
-  --qTyAssembly T 1# = {![[ T ]]T!}
-  --qTyAssembly T ω# = {!!}
-
-  --qCtxAssembly : forall {n} -> Ctx n -> QCtx n -> Assembly _ _
-  --qCtxAssembly nil nil = record
-  --  { [|_|] = One
-  --  ; assemblyOver = record
-  --    { _|=_ = \ _ _ -> One
-  --    ; realiser = \ _ -> I
-  --    ; realises = <>
-  --    }
-  --  }
-  --qCtxAssembly (T :: D) (rho :: G) = {!rho!}
-
-  --substAssembly : SubstRes vf (replicateVec n tt) G0 G1 -> G0 
-
-  realises : (T : QTy) ->
-             Setoid.C (PiS S (unindexed (PiS [[ T ]]T (unindexed (==-Setoid (Set a))))))
-  realises BASE = record
-    { _$E_ = \ a -> record
-      { _$E_ = \ _ -> Lift One
-      ; _$E=_ = \ _ -> refl
-      }
-    ; _$E=_ = \ _ _ -> refl
-    }
-  realises (S ~> T) = record
-    { _$E_ = \ a -> record
-      { _$E_ = \ f -> Sg A \ af -> forall {as s} -> realises S $E as $E s ->
-                                        Sg _ \ t -> realises T $E (af · as) $E t
-      ; _$E=_ = {!\ feq -> ?!}
-      }
-    ; _$E=_ = {!!}
-    }
+  -- realisability
