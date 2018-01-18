@@ -929,7 +929,11 @@ module DecLE (_≤?_ : forall x y -> Dec (x ≤ y)) where
     ~~>-preservesRes : forall {n d G sg} {t u : Term n d} (tr : G |-[ sg ] t) ->
                        t ~~> u -> G |-[ sg ] u
     ~~>-preservesRes {G = G} {sg} (app {Ge = Ge} {Gs} split (the (lam s0r)) s1r) (beta S T s0 s1) =
-      the (substituteRes {sgs = sg :: replicateVec _ tt} (sg*sg==sg sg :: ≈G-trans (vzip-replicateVec (\ sg' rho -> sg->rho sg' * rho) _ tt Ge) (≈G-trans (vmap-funext (e1 *_) id Ge (fst *-identity)) (vmap-id Ge))) s0r _ (singleSubstRes (the {S = S} s1r) (split' sg s1r)))
+      the (substituteRes {sgs = sg :: replicateVec _ tt}
+                         (sg*sg==sg sg :: ≈G-trans (vzip-replicateVec (\ sg' rho -> sg->rho sg' * rho) _ tt Ge)
+                                                   (≈G-trans (vmap-funext (e1 *_) id Ge (fst *-identity))
+                                                             (vmap-id Ge)))
+                         s0r _ (singleSubstRes (the {S = S} s1r) (split' sg s1r)))
       where
       split-eqs : Ge +G Gs ≈G sg->rho tt *G Gs +G Ge
       split-eqs =
