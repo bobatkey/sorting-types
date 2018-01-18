@@ -1,6 +1,6 @@
 module ZeroOneMany where
 
-open import Common hiding (_=>_; LTy; KEY; LIST; _<**>_; _&_; _-o_)
+open import Common hiding (LTy; KEY; LIST; _<**>_; _&_; _-o_)
                    renaming (_*_ to _×_)
 open import Setoid
 

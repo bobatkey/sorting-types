@@ -73,10 +73,6 @@ uncurryi f (-, b) = f b
 infixl 100 _-$_
 _-$_ = uncurryi
 
-record One : Set where
-  constructor <>
-open One public
-
 record Graph {a b} {A : Set a} {B : A -> Set b} (f : (x : A) -> B x) (x : A) (y : B x) : Set (a ⊔ b) where
   constructor ingraph
   field
@@ -105,10 +101,6 @@ xor tt tt = ff
 xor tt ff = tt
 xor ff tt = tt
 xor ff ff = ff
-
-_=>_ : Two -> Two -> Two
-tt => y = y
-ff => y = tt
 
 if_return_then_else_ : forall {a} (x : Two) (A : Two -> Set a) -> A tt -> A ff -> A x
 if tt return A then t else f = t

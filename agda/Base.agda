@@ -67,3 +67,7 @@ infixl 4 _<*>_
 _<*>_ : forall {a a' b b'} {A : Set a} {A' : Set a'} {B : A -> Set b} {B' : A' -> Set b'} ->
         (Sg (A -> A') \ fa -> forall {a} -> B a -> B' (fa a)) -> Sg A B -> Sg A' B'
 _<*>_ (fa , fb) = mapSg fa fb
+
+record One : Set where
+  constructor <>
+open One public
