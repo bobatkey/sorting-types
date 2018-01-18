@@ -100,6 +100,14 @@ PiS A B = record
   }
   where module A = Setoid A ; module B = SetoidI B
 
+_oE_ : forall {a b c l m n}
+       {A : Setoid a l} {B : Setoid b m} {C : Setoid c n} ->
+       PiE B (unindexed C) -> PiE A (unindexed B) -> PiE A (unindexed C)
+g oE f = record
+  { _$E_ = \ x -> g $E (f $E x)
+  ; _$E=_ = \ xy -> g $E= (f $E= xy)
+  }
+
 -- Pairs
 
 SgS : forall {a b l m} (A : Setoid a l) (B : SetoidI (Setoid.C A) b m) ->
@@ -118,3 +126,18 @@ SgS A B = record
     }
   }
   where module A = Setoid A ; module B = SetoidI B
+
+Subsetoid : forall {a p l X} (A : SetoidOver {a} X l) (P : X -> Set p) ->
+            Setoid _ _
+Subsetoid A P =
+  SgS (record { setoidOver = A })
+      (record
+        { C = P
+        ; setoidIOver = record
+          { _≈_ = \ _ _ -> One
+          ; isSetoidI = record { refl = <>
+                               ; sym = λ _ → <>
+                               ; trans = λ _ _ → <>
+                               }
+          }
+        })
