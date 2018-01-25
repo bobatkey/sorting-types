@@ -79,7 +79,7 @@ record PiE {a b l m} (A : Setoid a l) (B : SetoidI (Setoid.C A) b m)
        : Set (a ⊔ b ⊔ l ⊔ m) where
   private
     module A = Setoid A ; module B = SetoidI B
-  infixl 5 _$E_
+  infixl 6 _$E_ _$E=_
   field
     _$E_ : (x : A.C) -> B.C x
     _$E=_ : forall {x y} -> x A.≈ y -> _$E_ x B.≈ _$E_ y
@@ -100,13 +100,29 @@ PiS A B = record
   }
   where module A = Setoid A ; module B = SetoidI B
 
+infixr 3 _->E_ _->S_
+_->E_ : forall {a b l m} (A : Setoid a l) (B : Setoid b m) -> Set _
+A ->E B = PiE A (unindexed B)
+
+_->S_ : forall {a b l m} (A : Setoid a l) (B : Setoid b m) -> Setoid _ _
+A ->S B = PiS A (unindexed B)
+
+idE : forall {a l} (A : Setoid a l) -> A ->E A
+idE A = record { _$E_ = \ x -> x ; _$E=_ = \ xq -> xq }
+
+infixr 5 _oE_ _>>E_
 _oE_ : forall {a b c l m n}
        {A : Setoid a l} {B : Setoid b m} {C : Setoid c n} ->
-       PiE B (unindexed C) -> PiE A (unindexed B) -> PiE A (unindexed C)
+       B ->E C -> A ->E B -> A ->E C
 g oE f = record
   { _$E_ = \ x -> g $E (f $E x)
   ; _$E=_ = \ xy -> g $E= (f $E= xy)
   }
+
+_>>E_ : forall {a b c l m n}
+       {A : Setoid a l} {B : Setoid b m} {C : Setoid c n} ->
+       A ->E B -> B ->E C -> A ->E C
+f >>E g = g oE f
 
 -- Pairs
 
@@ -141,3 +157,12 @@ Subsetoid A P =
                                }
           }
         })
+
+OneS : Setoid lzero lzero
+OneS = record
+  { C = One
+  ; setoidOver = record
+    { _≈_ = \ _ _ -> One
+    ; isSetoid = record { refl = <> ; sym = \ _ -> <> ; trans = \ _ _ -> <> }
+    }
+  }
