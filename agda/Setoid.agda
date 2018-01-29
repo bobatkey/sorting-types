@@ -1,7 +1,7 @@
 module Setoid where
 
 open import Base renaming (refl to ==-refl; sym to ==-sym; trans to ==-trans)
-open import Level
+open import Common using (Lift; lift; lower)
 
 record IsSetoid {c l} {C : Set c} (_≈_ : C -> C -> Set l) : Set (c ⊔ l) where
   field
@@ -9,7 +9,7 @@ record IsSetoid {c l} {C : Set c} (_≈_ : C -> C -> Set l) : Set (c ⊔ l) wher
     sym : ∀ {x y} -> x ≈ y -> y ≈ x
     trans : ∀ {x y z} -> x ≈ y -> y ≈ z -> x ≈ z
 
-record SetoidOver {c} (C : Set c) l : Set (c ⊔ suc l) where
+record SetoidOver {c} (C : Set c) l : Set (c ⊔ lsuc l) where
   infix 4 _≈_
   field
     _≈_ : C -> C -> Set l
@@ -17,7 +17,7 @@ record SetoidOver {c} (C : Set c) l : Set (c ⊔ suc l) where
 
   open IsSetoid isSetoid public
 
-record Setoid c l : Set (suc (c ⊔ l)) where
+record Setoid c l : Set (lsuc (c ⊔ l)) where
   field
     C : Set c
     setoidOver : SetoidOver C l
@@ -44,7 +44,7 @@ record IsSetoidI {i c l} {I : Set i} (C : I -> Set c)
     trans : ∀ {i j k} {x : C i} {y : C j} {z : C k} -> x ≈ y -> y ≈ z -> x ≈ z
 
 record SetoidIOver {i c} {I : Set i} (C : I -> Set c) l
-       : Set (i ⊔ c ⊔ suc l) where
+       : Set (i ⊔ c ⊔ lsuc l) where
   infix 4 _≈_
   field
     _≈_ : forall {i j} -> C i -> C j -> Set l
@@ -52,7 +52,7 @@ record SetoidIOver {i c} {I : Set i} (C : I -> Set c) l
 
   open IsSetoidI isSetoidI public
 
-record SetoidI {i} (I : Set i) c l : Set (i ⊔ suc (c ⊔ l)) where
+record SetoidI {i} (I : Set i) c l : Set (i ⊔ lsuc (c ⊔ l)) where
   field
     C : I -> Set c
     setoidIOver : SetoidIOver C l
@@ -143,6 +143,9 @@ SgS A B = record
   }
   where module A = Setoid A ; module B = SetoidI B
 
+_×S_ : forall {a b l m} (A : Setoid a l) (B : Setoid b m) -> Setoid _ _
+A ×S B = SgS A (unindexed B)
+
 Subsetoid : forall {a p l X} (A : SetoidOver {a} X l) (P : X -> Set p) ->
             Setoid _ _
 Subsetoid A P =
@@ -152,8 +155,8 @@ Subsetoid A P =
         ; setoidIOver = record
           { _≈_ = \ _ _ -> One
           ; isSetoidI = record { refl = <>
-                               ; sym = λ _ → <>
-                               ; trans = λ _ _ → <>
+                               ; sym = \ _ -> <>
+                               ; trans = \ _ _ -> <>
                                }
           }
         })
@@ -166,3 +169,17 @@ OneS = record
     ; isSetoid = record { refl = <> ; sym = \ _ -> <> ; trans = \ _ _ -> <> }
     }
   }
+
+LiftS : forall {a l a' l'} -> Setoid a l -> Setoid (a ⊔ a') (l ⊔ l')
+LiftS {a' = a'} {l'} S = record
+  { C = Lift {l = a'} C
+  ; setoidOver = record
+    { _≈_ = \ { (lift x) (lift y) -> Lift {l = l'} (x ≈ y) }
+    ; isSetoid = record
+      { refl = lift refl
+      ; sym = \ { (lift xy) -> lift (sym xy) }
+      ; trans = \ { (lift xy) (lift yz) -> lift (trans xy yz) }
+      }
+    }
+  }
+  where open Setoid S

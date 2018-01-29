@@ -79,9 +79,11 @@ module Category where
       farr : forall {A B} -> C.Arr A B ->E D.Arr (fobj A) (fobj B)
       isFunctor : IsFunctor C D fobj farr
 
+  {-+}
   CATEGORY : forall o a e -> Category _ _ _
   CATEGORY o a e = record
     { Obj = Category o a e
     ; Arr = {!Functor!}
     ; isCategory = {!!}
     }
+  {+-}

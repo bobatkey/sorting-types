@@ -489,12 +489,23 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
                                  sx sy s))
   toBCIs-T≈Chk [ er ] [ et ] d = toBCIs-T≈Syn er et d
 
-  _,A_ : A -> A -> A
-  a ,A b = C · (C · I · a) · b
+open import BCI.Indexed
 
-module WithBCI! {a l} (S : Setoid a l) (Alg : BCI! S) where
+--module WithBCIρ {a b l m} (S : Setoid a l) (R : Setoid b m) (Rs : Semiring R) (Alg : BCIρ S R Rs) where
+module WithBCIρ {a l} (S : Setoid a l) (Alg : BCIρ S _ semiring) where
   open Setoid S renaming (C to A; refl to refl-≈; sym to sym-≈; trans to trans-≈)
-  open BCI! Alg
+  open BCIρ Alg
   open WithBCI S bci
+  open BCI-Combinators S bci
+  open import Assembly bci
+  open import Assembly.Indexed Alg
 
   -- realisability
+
+  T-asm : QTy -> Assembly (a ⊔ l) (a ⊔ l) (a ⊔ l)
+  T-asm BASE = LiftA {r' = a} oneA
+  T-asm (S ~> T) = T-asm S ->A T-asm T
+
+  GD-asm : forall {n} (G : QCtx n) (D : Ctx n) -> Assembly _ _ _
+  GD-asm nil nil = LiftA {r' = a} oneA
+  GD-asm (ρ :: G) (T :: D) = pairA (bangA ρ (T-asm T)) (GD-asm G D)

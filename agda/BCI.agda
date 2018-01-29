@@ -21,12 +21,13 @@ record BCI : Set (a ⊔ l) where
     isBCI : IsBCI _·_ B C I
   open IsBCI isBCI public
 
-record IsBCI! (_·_ : A -> A -> A) (B C I K W D δ F : A) (! : A -> A) : Set (a ⊔ l) where
+record IsBCI! (_·_ : A -> A -> A) (B C I K W D δ F : A) (! : A -> A)
+              : Set (a ⊔ l) where
   field
     Kx!y  : forall x y ->   (K · x) · ! y ≈ x
     Wx!y  : forall x y ->   (W · x) · ! y ≈ (x · y) · y
     D!x   : forall x   ->         D · ! x ≈ x
-    δ!x   : forall x   ->         D · ! x ≈ ! (! x)
+    δ!x   : forall x   ->         δ · ! x ≈ ! (! x)
     F!x!y : forall x y -> (F · ! x) · ! y ≈ ! (x · y)
     isBCI : IsBCI _·_ B C I
   open IsBCI isBCI public
@@ -42,3 +43,10 @@ record BCI! : Set (a ⊔ l) where
 
   bci : BCI
   bci = record { isBCI = isBCI }
+
+module BCI-Combinators (Alg : BCI) where
+  open BCI Alg
+
+  infixr 5 _,A_
+  _,A_ : A -> A -> A
+  a ,A b = C · (C · I · a) · b
