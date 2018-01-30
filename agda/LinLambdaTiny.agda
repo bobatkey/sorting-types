@@ -48,16 +48,16 @@ id-t D S with S ==QTy? S | inspect (checkType D (S ~> S)) id-s
 id-t D S | yes p | ingraph req = toWitness (subst (T o floor) (sym req) <>)
 id-t D S | no np | ingraph req = Zero-elim (np refl)
 
-id-r : forall {n} -> Sg _ \ G -> G |- id-s {n}
+id-r : forall {n} -> Sg _ \ G -> G |-r id-s {n}
 id-r {n} = mapSg id fst (byDec (bestRes? {n} id-s))
 
 C-s : Term 0 chk
 C-s = lam (lam (lam [ app (app (var# 2) [ var# 0 ]) [ var# 1 ] ]))
 
-C-r : nil |- C-s
+C-r : nil |-r C-s
 C-r = cleanup (fst (snd (byDec (bestRes? C-s))))
   where
-  cleanup : forall {d G} {s : Term 0 d} -> G |- s -> nil |- s
+  cleanup : forall {d G} {s : Term 0 d} -> G |-r s -> nil |-r s
   cleanup {G = nil} r = r
 
 data _∈_ {n} (x : 1 ≤th n) : forall {d} -> Term n d -> Set where
@@ -78,7 +78,7 @@ module Usage where
       (sym (0#-top z))
 
   0#-not-appears : forall {n d G i} {t : Term n d} ->
-                   G |- t -> 1≤th-index i G == 0# -> i ∈ t -> Zero
+                   G |-r t -> 1≤th-index i G == 0# -> i ∈ t -> Zero
   0#-not-appears {G = G} {i} (var sub) un var
     with 1≤th-index i G
        | (≤-trans (1≤th-indexVZip i sub) (≤-reflexive (1≤th-index-varQCtx i)))
@@ -92,7 +92,7 @@ module Usage where
   0#-not-appears [ er ] un [ el ] = 0#-not-appears er un el
 
   1#-appears-once : forall {n d G i} {t : Term n d} ->
-                    G |- t -> 1≤th-index i G == 1# ->
+                    G |-r t -> 1≤th-index i G == 1# ->
                     Sg (i ∈ t) \ el -> (el' : i ∈ t) -> el == el'
   1#-appears-once {G = G} {i = i} (var {th = th} sub) use with i ==th? th
   1#-appears-once {G = G} {.th} (var {th} sub) use | yes refl =
@@ -241,9 +241,9 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
                                                         ; ω# -> One
                                                         }
 
-  toBCIs : forall {n d G} {t : Term n d} -> G |- t -> BCIs n
+  toBCIs : forall {n d G} {t : Term n d} -> G |-r t -> BCIs n
   toBCIsUsage : forall {n d G} {t : Term n d}
-                (tr : G |- t) -> UsageMatch G (toBCIs tr)
+                (tr : G |-r t) -> UsageMatch G (toBCIs tr)
 
   toBCIs {t = var i} (var sub) = vars i
   toBCIs (app split er sr) = toBCIs er ·s toBCIs sr
@@ -284,7 +284,7 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   ... | ω# | h | t = <>
   toBCIsUsage [ er ] = toBCIsUsage er
 
-  toBCI : forall {n d G} {t : Term n d} -> G |- t -> (1 ≤th n -> A) -> A
+  toBCI : forall {n d G} {t : Term n d} -> G |-r t -> (1 ≤th n -> A) -> A
   toBCI tr f = ⟦ toBCIs tr ⟧ f
 
 
@@ -319,9 +319,9 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
     Bs ·s elimUnusedTy non Mt ·s elimUsedTy uni Nt
 
   toBCIsTySyn : forall {n G D S} {e : Term n syn} ->
-                (er : G |- e) -> D |-t e ∈ S -> D |-s toBCIs er :: S
+                (er : G |-r e) -> D |-t e ∈ S -> D |-s toBCIs er :: S
   toBCIsTyChk : forall {n G D S} {s : Term n chk} ->
-                (sr : G |- s) -> D |-t S ∋ s -> D |-s toBCIs sr :: S
+                (sr : G |-r s) -> D |-t S ∋ s -> D |-s toBCIs sr :: S
 
   toBCIsTySyn (var sub) (var {i}) = vars i
   toBCIsTySyn (app split er sr) (app et st) =
@@ -450,10 +450,10 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
                                (elimUsed-T≈ uni Nt s d)
 
   toBCIs-T≈Syn :
-    forall {n G D S} {e : Term n syn} (er : G |- e) (et : D |-t e ∈ S) d ->
+    forall {n G D S} {e : Term n syn} (er : G |-r e) (et : D |-t e ∈ S) d ->
     [ S ]T [[ et ]]e d ≈ [[ toBCIsTySyn er et ]]c d
   toBCIs-T≈Chk :
-    forall {n G D S} {s : Term n chk} (sr : G |- s) (st : D |-t S ∋ s) d ->
+    forall {n G D S} {s : Term n chk} (sr : G |-r s) (st : D |-t S ∋ s) d ->
     [ S ]T [[ st ]]s d ≈ [[ toBCIsTyChk sr st ]]c d
 
   toBCIs-T≈Syn (var sub) (var {i}) d = refl-T≈ ([[ i ]]i d)
