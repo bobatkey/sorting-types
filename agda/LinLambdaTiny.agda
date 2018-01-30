@@ -60,15 +60,15 @@ C-r = cleanup (fst (snd (byDec (bestRes? C-s))))
   cleanup : forall {d G} {s : Term 0 d} -> G |-r s -> nil |-r s
   cleanup {G = nil} r = r
 
-data _∈_ {n} (x : 1 ≤th n) : forall {d} -> Term n d -> Set where
-  var : x ∈ var x
-  app-e : forall {e s} -> x ∈ e -> x ∈ app e s
-  app-s : forall {e s} -> x ∈ s -> x ∈ app e s
-  the : forall {S s} -> x ∈ s -> x ∈ the S s
-  lam : forall {s} -> o' x ∈ s -> x ∈ lam s
-  [_] : forall {e} -> x ∈ e -> x ∈ [ e ]
-
 module Usage where
+  data _∈t_ {n} (x : 1 ≤th n) : forall {d} -> Term n d -> Set where
+    var : x ∈t var x
+    app-e : forall {e s} -> x ∈t e -> x ∈t app e s
+    app-s : forall {e s} -> x ∈t s -> x ∈t app e s
+    the : forall {S s} -> x ∈t s -> x ∈t the S s
+    lam : forall {s} -> o' x ∈t s -> x ∈t lam s
+    [_] : forall {e} -> x ∈t e -> x ∈t [ e ]
+
   0#-split : forall {n G G0 G1} (i : 1 ≤th n) ->
              G ≤G G0 +G G1 -> 1≤th-index i G == 0# ->
              (1≤th-index i G0 == 0#) × (1≤th-index i G1 == 0#)
@@ -78,7 +78,7 @@ module Usage where
       (sym (0#-top z))
 
   0#-not-appears : forall {n d G i} {t : Term n d} ->
-                   G |-r t -> 1≤th-index i G == 0# -> i ∈ t -> Zero
+                   G |-r t -> 1≤th-index i G == 0# -> i ∈t t -> Zero
   0#-not-appears {G = G} {i} (var sub) un var
     with 1≤th-index i G
        | (≤-trans (1≤th-indexVZip i sub) (≤-reflexive (1≤th-index-varQCtx i)))
@@ -93,7 +93,7 @@ module Usage where
 
   1#-appears-once : forall {n d G i} {t : Term n d} ->
                     G |-r t -> 1≤th-index i G == 1# ->
-                    Sg (i ∈ t) \ el -> (el' : i ∈ t) -> el == el'
+                    Sg (i ∈t t) \ el -> (el' : i ∈t t) -> el == el'
   1#-appears-once {G = G} {i = i} (var {th = th} sub) use with i ==th? th
   1#-appears-once {G = G} {.th} (var {th} sub) use | yes refl =
     var , \ { var -> refl }
@@ -122,8 +122,6 @@ module Usage where
     mapSg lam (\ f -> \ { (lam el) -> cong lam (f el) }) (1#-appears-once sr use)
   1#-appears-once [ er ] use =
     mapSg [_] (\ f -> \ { [ el ] -> cong [_] (f el) }) (1#-appears-once er use)
-
-open Usage using (0#-not-appears)
 
 -- BCI semantics
 
@@ -318,18 +316,15 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   elimUsedTy (non ·s-r uni) (Mt ·s Nt) =
     Bs ·s elimUnusedTy non Mt ·s elimUsedTy uni Nt
 
-  toBCIsTySyn : forall {n G D S} {e : Term n syn} ->
-                (er : G |-r e) -> D |-t e ∈ S -> D |-s toBCIs er :: S
-  toBCIsTyChk : forall {n G D S} {s : Term n chk} ->
-                (sr : G |-r s) -> D |-t S ∋ s -> D |-s toBCIs sr :: S
-
-  toBCIsTySyn (var sub) (var {i}) = vars i
-  toBCIsTySyn (app split er sr) (app et st) =
-    toBCIsTySyn er et ·s toBCIsTyChk sr st
-  toBCIsTySyn (the sr) (the st) = toBCIsTyChk sr st
-  toBCIsTyChk (lam sr) (lam st) =
-    elimUsedTy (toBCIsUsage sr zeroth) (toBCIsTyChk sr st)
-  toBCIsTyChk [ er ] [ et ] = toBCIsTySyn er et
+  toBCIsTy : forall {n G D d S} {t : Term n d} ->
+             (tr : G |-r t) -> D |-t t :-: S -> D |-s toBCIs tr :: S
+  toBCIsTy (var sub) (var {i}) = vars i
+  toBCIsTy (app split er sr) (app et st) =
+    toBCIsTy er et ·s toBCIsTy sr st
+  toBCIsTy (the sr) (the st) = toBCIsTy sr st
+  toBCIsTy (lam sr) (lam st) =
+    elimUsedTy (toBCIsUsage sr zeroth) (toBCIsTy sr st)
+  toBCIsTy [ er ] [ et ] = toBCIsTy er et
 
 
   -- Semantics
@@ -381,26 +376,23 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   [[ os i ]]i-D≈ {T :: D} _ _ (t , d) = t
   [[ o' i ]]i-D≈ {T :: D} (tx , dx) (ty , dy) (t , d) = [[ i ]]i-D≈ dx dy d
 
-  [[_]]e : forall {n D S} {e : Term n syn} -> D |-t e ∈ S -> [[ D ]]D -> [[ S ]]T
-  [[_]]s : forall {n D S} {s : Term n chk} -> D |-t S ∋ s -> [[ D ]]D -> [[ S ]]T
-  [[_]]e-D≈ : forall {n D S} {e : Term n syn} (et : D |-t e ∈ S)
-              dx dy -> [ D ]D dx ≈ dy -> [ S ]T [[ et ]]e dx ≈ [[ et ]]e dy
-  [[_]]s-D≈ : forall {n D S} {s : Term n chk} (st : D |-t S ∋ s)
-              dx dy -> [ D ]D dx ≈ dy -> [ S ]T [[ st ]]s dx ≈ [[ st ]]s dy
+  [[_]]t : forall {n D d S} {t : Term n d} -> D |-t t :-: S -> [[ D ]]D -> [[ S ]]T
+  [[_]]t-D≈ : forall {n D d S} {t : Term n d} (tt : D |-t t :-: S)
+              dx dy -> [ D ]D dx ≈ dy -> [ S ]T [[ tt ]]t dx ≈ [[ tt ]]t dy
 
-  [[ var {i} ]]e = [[ i ]]i
-  [[ app et st ]]e d = [[ et ]]e d [$] [[ st ]]s d
-  [[ the st ]]e = [[ st ]]s
-  [[ lam st ]]s d = (\ x -> [[ st ]]s (x , d))
-                  , \ x y xy -> [[ st ]]s-D≈ (x , d) (y , d) (xy , refl-D≈ d)
-  [[ [ et ] ]]s = [[ et ]]e
+  [[ var {i} ]]t = [[ i ]]i
+  [[ app et st ]]t d = [[ et ]]t d [$] [[ st ]]t d
+  [[ the st ]]t = [[ st ]]t
+  [[ lam st ]]t d = (\ x -> [[ st ]]t (x , d))
+                  , \ x y xy -> [[ st ]]t-D≈ (x , d) (y , d) (xy , refl-D≈ d)
+  [[ [ et ] ]]t = [[ et ]]t
 
-  [[ var {i} ]]e-D≈ = [[ i ]]i-D≈
-  [[ app et st ]]e-D≈ dx dy d =
-    ([[ et ]]e-D≈ dx dy d) ([[ st ]]s dx) ([[ st ]]s dy) ([[ st ]]s-D≈ dx dy d)
-  [[ the st ]]e-D≈ = [[ st ]]s-D≈
-  [[ lam st ]]s-D≈ dx dy d sx sy s = [[ st ]]s-D≈ (sx , dx) (sy , dy) (s , d)
-  [[ [ et ] ]]s-D≈ = [[ et ]]e-D≈
+  [[ var {i} ]]t-D≈ = [[ i ]]i-D≈
+  [[ app et st ]]t-D≈ dx dy d =
+    ([[ et ]]t-D≈ dx dy d) ([[ st ]]t dx) ([[ st ]]t dy) ([[ st ]]t-D≈ dx dy d)
+  [[ the st ]]t-D≈ = [[ st ]]t-D≈
+  [[ lam st ]]t-D≈ dx dy d sx sy t = [[ st ]]t-D≈ (sx , dx) (sy , dy) (t , d)
+  [[ [ et ] ]]t-D≈ = [[ et ]]t-D≈
 
   [[_]]c : forall {n D S} {a : BCIs n} -> D |-s a :: S -> [[ D ]]D -> [[ S ]]T
   [[ vars i ]]c = [[ i ]]i
@@ -449,35 +441,31 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
                                ([[ elimUsedTy uni Nt ]]c d [$] s)
                                (elimUsed-T≈ uni Nt s d)
 
-  toBCIs-T≈Syn :
-    forall {n G D S} {e : Term n syn} (er : G |-r e) (et : D |-t e ∈ S) d ->
-    [ S ]T [[ et ]]e d ≈ [[ toBCIsTySyn er et ]]c d
-  toBCIs-T≈Chk :
-    forall {n G D S} {s : Term n chk} (sr : G |-r s) (st : D |-t S ∋ s) d ->
-    [ S ]T [[ st ]]s d ≈ [[ toBCIsTyChk sr st ]]c d
-
-  toBCIs-T≈Syn (var sub) (var {i}) d = refl-T≈ ([[ i ]]i d)
-  toBCIs-T≈Syn (app split er sr) (app et st) d =
-    (toBCIs-T≈Syn er et d) ([[ st ]]s d) ([[ toBCIsTyChk sr st ]]c d)
-                           (toBCIs-T≈Chk sr st d)
-  toBCIs-T≈Syn (the sr) (the st) d = toBCIs-T≈Chk sr st d
-  toBCIs-T≈Chk (lam sr) (lam st) d sx sy s =
-    trans-T≈ ([[ st ]]s (sx , d))
-             ([[ toBCIsTyChk sr st ]]c (sx , d))
+  toBCIs-T≈ :
+    forall {n G D d S} {u : Term n d} (ur : G |-r u) (ut : D |-t u :-: S) d ->
+    [ S ]T [[ ut ]]t d ≈ [[ toBCIsTy ur ut ]]c d
+  toBCIs-T≈ (var sub) (var {i}) d = refl-T≈ ([[ i ]]i d)
+  toBCIs-T≈ (app split er sr) (app et st) d =
+    (toBCIs-T≈ er et d) ([[ st ]]t d) ([[ toBCIsTy sr st ]]c d)
+                        (toBCIs-T≈ sr st d)
+  toBCIs-T≈ (the sr) (the st) d = toBCIs-T≈ sr st d
+  toBCIs-T≈ (lam sr) (lam st) d sx sy s =
+    trans-T≈ ([[ st ]]t (sx , d))
+             ([[ toBCIsTy sr st ]]c (sx , d))
              ([[ elimUsedTy (toBCIsUsage sr zeroth)
-                            (toBCIsTyChk sr st) ]]c d [$] sy)
-             (toBCIs-T≈Chk sr st (sx , d))
-             (trans-T≈ ([[ toBCIsTyChk sr st ]]c (sx , d))
+                            (toBCIsTy sr st) ]]c d [$] sy)
+             (toBCIs-T≈ sr st (sx , d))
+             (trans-T≈ ([[ toBCIsTy sr st ]]c (sx , d))
                        ([[ elimUsedTy (toBCIsUsage sr zeroth)
-                                      (toBCIsTyChk sr st) ]]c d [$] sx)
+                                      (toBCIsTy sr st) ]]c d [$] sx)
                        ([[ elimUsedTy (toBCIsUsage sr zeroth)
-                                      (toBCIsTyChk sr st) ]]c d [$] sy)
+                                      (toBCIsTy sr st) ]]c d [$] sy)
                        (elimUsed-T≈ (toBCIsUsage sr zeroth)
-                                    (toBCIsTyChk sr st) sx d)
+                                    (toBCIsTy sr st) sx d)
                        ((refl-T≈ ([[ elimUsedTy (toBCIsUsage sr zeroth)
-                                                (toBCIsTyChk sr st) ]]c d))
+                                                (toBCIsTy sr st) ]]c d))
                                  sx sy s))
-  toBCIs-T≈Chk [ er ] [ et ] d = toBCIs-T≈Syn er et d
+  toBCIs-T≈ [ er ] [ et ] d = toBCIs-T≈ er et d
 
 open import BCI.Indexed
 

@@ -311,13 +311,23 @@ data Term (n : Nat) : Dir -> Set c where
 var# : forall {n} m {less : Auto (m <th? n)} -> Term n syn
 var# m {less} = var (#th_ m {less})
 
-infix 3 _|-t_∈_ _|-t_∋_ _|-r_ --_|-t[_]_∈ _|-t[_]∋_
+infix 4 _∈_ _∋_ _:-:_
+infix 3 _|-t_ _|-r_
+
+record Consequent {n d} (t : Term n d) (T : QTy) : Set c where
+  constructor consequent
+
+_∈_ : forall {n} (e : Term n syn) (T : QTy) -> Consequent e T
+e ∈ T = consequent
+
+_∋_ : forall {n} (T : QTy) (s : Term n chk) -> Consequent s T
+T ∋ s = consequent
+
+_:-:_ : forall {n d} (t : Term n d) (T : QTy) -> Consequent t T
+t :-: T = consequent
 
 -- type correctness
-data _|-t_∈_ {n} (D : Ctx n) : Term n syn -> QTy -> Set c
-data _|-t_∋_ {n} (D : Ctx n) : QTy -> Term n chk -> Set c
-
-data _|-t_∈_ {n} (D : Ctx n) where
+data _|-t_ {n} (D : Ctx n) : forall {d} {t : Term n d} {T} -> Consequent t T -> Set c where
   var : forall {th}
         ->
         D |-t var th ∈ (1≤th-index th D)
@@ -330,7 +340,6 @@ data _|-t_∈_ {n} (D : Ctx n) where
         ->
         D |-t the S s ∈ S
 
-data _|-t_∋_ {n} (D : Ctx n) where
   lam : forall {s S T}
         (st : S :: D |-t T ∋ s)
         ->
@@ -449,21 +458,19 @@ data _~~>_ {n} : forall {d} (t u : Term n d) -> Set where
   app1-cong : forall e0 e1 s -> e0 ~~> e1 -> app e0 s ~~> app e1 s
   app2-cong : forall e s0 s1 -> s0 ~~> s1 -> app e s0 ~~> app e s1
 
-punchInNManyVarsTySyn :
-  forall {m n l T e} {Dm : Ctx m} (Dn : Ctx n) (Dl : Ctx l) ->
-  Dl +V Dm |-t e ∈ T -> Dl +V Dn +V Dm |-t punchInNManyVars n l e ∈ T
-punchInNManyVarsTyChk :
-  forall {m n l T s} {Dm : Ctx m} (Dn : Ctx n) (Dl : Ctx l) ->
-  Dl +V Dm |-t T ∋ s -> Dl +V Dn +V Dm |-t T ∋ punchInNManyVars n l s
-
-punchInNManyVarsTySyn {l = l} {e = var th} {Dm} Dn Dl var
+punchInNManyVarsTy :
+  forall {m n l d T} {t : Term _ d} {Dm : Ctx m} (Dn : Ctx n) (Dl : Ctx l) ->
+  Dl +V Dm |-t t :-: T -> Dl +V Dn +V Dm |-t punchInNManyVars n l t :-: T
+punchInNManyVarsTy {Dm = Dm} Dn Dl (var {th = th})
   rewrite sym (1≤th-index-punchInNMany Dl Dn Dm th) = var
-punchInNManyVarsTySyn Dn Dl (app et st) =
-  app (punchInNManyVarsTySyn Dn Dl et) (punchInNManyVarsTyChk Dn Dl st)
-punchInNManyVarsTySyn Dn Dl (the st) = the (punchInNManyVarsTyChk Dn Dl st)
-
-punchInNManyVarsTyChk Dn Dl (lam {S = S} st) = lam (punchInNManyVarsTyChk Dn (S :: Dl) st)
-punchInNManyVarsTyChk Dn Dl [ et ] = [ punchInNManyVarsTySyn Dn Dl et ]
+punchInNManyVarsTy Dn Dl (app et st) =
+  app (punchInNManyVarsTy Dn Dl et) (punchInNManyVarsTy Dn Dl st)
+punchInNManyVarsTy Dn Dl (the st) =
+  the (punchInNManyVarsTy Dn Dl st)
+punchInNManyVarsTy Dn Dl (lam {S = S} st) =
+  lam (punchInNManyVarsTy Dn (S :: Dl) st)
+punchInNManyVarsTy Dn Dl [ et ] =
+  [ punchInNManyVarsTy Dn Dl et ]
 
 SubstTy : forall {m n} -> Subst m n -> Ctx m -> Ctx n -> Set c
 SubstTy {m} {n} vf Dm Dn = (th : 1 ≤th m) -> Dn |-t vf th ∈ 1≤th-index th Dm
@@ -475,38 +482,28 @@ singleSubstTy et (o' th) = var
 liftSubstTy : forall {m n Dm Dn} T (vf : Subst m n) ->
               SubstTy vf Dm Dn -> SubstTy (liftSubst vf) (T :: Dm) (T :: Dn)
 liftSubstTy T vf vft (os th) = var
-liftSubstTy T vf vft (o' th) = punchInNManyVarsTySyn (T :: nil) nil (vft th)
+liftSubstTy T vf vft (o' th) = punchInNManyVarsTy (T :: nil) nil (vft th)
 
-substituteTySyn :
-  forall {m n S} {e : Term m syn}
-  {Dm : Ctx m} {Dn : Ctx n} ->
-  Dm |-t e ∈ S -> (vf : Subst m n) -> SubstTy vf Dm Dn ->
-  Dn |-t substitute e vf ∈ S
-substituteTyChk :
-  forall {m n S} {s : Term m chk}
-  {Dm : Ctx m} {Dn : Ctx n} ->
-  Dm |-t S ∋ s -> (vf : Subst m n) -> SubstTy vf Dm Dn ->
-  Dn |-t S ∋ substitute s vf
+substituteTy :
+  forall {m n d T} {t : Term m d} {Dm : Ctx m} {Dn : Ctx n} ->
+  Dm |-t t :-: T -> (vf : Subst m n) -> SubstTy vf Dm Dn ->
+  Dn |-t substitute t vf :-: T
+substituteTy (var {th = th}) vf vft = vft th
+substituteTy (app et st) vf vft =
+  app (substituteTy et vf vft) (substituteTy st vf vft)
+substituteTy (the st) vf vft = the (substituteTy st vf vft)
+substituteTy (lam st) vf vft =
+  lam (substituteTy st (liftSubst vf) (liftSubstTy _ vf vft))
+substituteTy [ et ] vf vft = [ substituteTy et vf vft ]
 
-substituteTySyn (var {th = th}) vf vft = vft th
-substituteTySyn (app et st) vf vft = app (substituteTySyn et vf vft) (substituteTyChk st vf vft)
-substituteTySyn (the st) vf vft = the (substituteTyChk st vf vft)
-
-substituteTyChk (lam st) vf vft = lam (substituteTyChk st (liftSubst vf) (liftSubstTy _ vf vft))
-substituteTyChk [ et ] vf vft = [ substituteTySyn et vf vft ]
-
-~~>-preservesTySyn : forall {n D T} {e f : Term n syn} (et : D |-t e ∈ T) ->
-                     e ~~> f -> D |-t f ∈ T
-~~>-preservesTyChk : forall {n D T} {s t : Term n chk} (st : D |-t T ∋ s) ->
-                     s ~~> t -> D |-t T ∋ t
-
-~~>-preservesTySyn (app (the (lam s0t)) s1t) (beta S T s0 s1) =
-  the (substituteTyChk s0t (singleSubst (the S s1)) (singleSubstTy (the s1t)))
-~~>-preservesTySyn (app et st) (app1-cong e0 e1 s red) = app (~~>-preservesTySyn et red) st
-~~>-preservesTySyn (app et st) (app2-cong e s0 s1 red) = app et (~~>-preservesTyChk st red)
-
-~~>-preservesTyChk [ the st ] (upsilon S s) = st
-~~>-preservesTyChk (lam s0t) (lam-cong s0 s1 red) = lam (~~>-preservesTyChk s0t red)
+~~>-preservesTy : forall {n D d T} {t u : Term n d} (tt : D |-t t :-: T) ->
+                  t ~~> u -> D |-t u :-: T
+~~>-preservesTy (app (the (lam s0t)) s1t) (beta S T s0 s1) =
+  the (substituteTy s0t (singleSubst (the S s1)) (singleSubstTy (the s1t)))
+~~>-preservesTy [ the st ] (upsilon S s) = st
+~~>-preservesTy (lam s0t) (lam-cong s0 s1 r) = lam (~~>-preservesTy s0t r)
+~~>-preservesTy (app et st) (app1-cong e2 e3 s r) = app (~~>-preservesTy et r) st
+~~>-preservesTy (app et st) (app2-cong e s0 s1 r) = app et (~~>-preservesTy st r)
 
 punchInNManyVarsRes :
   forall {l n m d} {t : Term (l +N m) d} {Gm : QCtx m} {Gn} (Gl : QCtx l) ->
