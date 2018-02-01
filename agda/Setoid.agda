@@ -1,7 +1,7 @@
 module Setoid where
 
 open import Base renaming (refl to ==-refl; sym to ==-sym; trans to ==-trans)
-open import Common using (Lift; lift; lower)
+open import Common using (Lift; lift; lower; _o_)
 
 record IsSetoid {c l} {C : Set c} (_≈_ : C -> C -> Set l) : Set (c ⊔ l) where
   field
@@ -73,6 +73,33 @@ unindexed S = record
   }
   where open Setoid S
 
+_$S_ : forall {i c l I} -> SetoidI {i} I c l -> I -> Setoid c l
+S $S i = record
+  { C = C i
+  ; setoidOver = record
+    { _≈_ = _≈_
+    ; isSetoid = record { refl = refl ; sym = sym ; trans = trans }
+    }
+  }
+  where open SetoidI S
+
+lamS : forall {i c l I} -> (I -> Setoid c l) -> SetoidI {i} I c (l ⊔ i)
+lamS F = record
+  { C = \ i -> Setoid.C (F i)
+  ; setoidIOver = record
+    { _≈_ = \ {i} {j} fi fj -> Sg (i == j) \ { ==-refl -> let open Setoid (F j) in fi ≈ fj }
+    ; isSetoidI = record
+      { refl = \ {i} -> let open Setoid (F i) in ==-refl , refl
+      ; sym = \ { {i} (==-refl , xy) ->
+                  let open Setoid (F i) in ==-refl , sym xy
+                }
+      ; trans = \ { {i} (==-refl , xy) (==-refl , yz) ->
+                    let open Setoid (F i) in ==-refl , trans xy yz
+                  }
+      }
+    }
+  }
+
 -- Functions with extensional equality
 
 record PiE {a b l m} (A : Setoid a l) (B : SetoidI (Setoid.C A) b m)
@@ -124,6 +151,16 @@ _>>E_ : forall {a b c l m n}
        A ->E B -> B ->E C -> A ->E C
 f >>E g = g oE f
 
+constE : forall {a b l m} {A : Setoid a l} {B : Setoid b m} ->
+         A ->E (B ->S A)
+constE {A = A} {B} = record
+  { _$E_ = \ a -> record
+    { _$E_ = \ b -> a
+    ; _$E=_ = \ bq -> Setoid.refl A
+    }
+  ; _$E=_ = \ aq _ -> aq
+  }
+
 -- Pairs
 
 SgS : forall {a b l m} (A : Setoid a l) (B : SetoidI (Setoid.C A) b m) ->
@@ -145,6 +182,21 @@ SgS A B = record
 
 _×S_ : forall {a b l m} (A : Setoid a l) (B : Setoid b m) -> Setoid _ _
 A ×S B = SgS A (unindexed B)
+
+fstE : forall {a b l m} {A : Setoid a l} {B : SetoidI (Setoid.C A) b m} ->
+       SgS A B ->E A
+fstE = record { _$E_ = \ { (a , b) -> a } ; _$E=_ = \ { (aq , bq) -> aq } }
+
+sndE : forall {a b l m} {A : Setoid a l} {B : Setoid b m} ->
+       A ×S B ->E B
+sndE = record { _$E_ = \ { (a , b) -> b } ; _$E=_ = \ { (aq , bq) -> bq } }
+
+--sndE : forall {a b l m} {A : Setoid a l} {B : SetoidI (Setoid.C A) b m} ->
+--       PiE (SgS A B) (lamS \ { (a , b) -> B $S a })
+--sndE = record
+--  { _$E_ = \ { (a , b) -> b }
+--  ; _$E=_ = \ { {ax , bx} {ay , by} (aq , bq) -> {!aq!} }
+--  }
 
 Subsetoid : forall {a p l X} (A : SetoidOver {a} X l) (P : X -> Set p) ->
             Setoid _ _
@@ -183,3 +235,15 @@ LiftS {a' = a'} {l'} S = record
     }
   }
   where open Setoid S
+
+module SetoidReasoning {a l} (S : Setoid a l) where
+  open Setoid S
+
+  infixr 2 _≈[_]≈_
+  infix 3 _QED
+
+  _≈[_]≈_ : forall x {y z} -> x ≈ y -> y ≈ z -> x ≈ z
+  x ≈[ xy ]≈ yz = trans xy yz
+
+  _QED : forall x -> x ≈ x
+  x QED = refl

@@ -2,11 +2,12 @@ open import Setoid as Setoid'
 
 module BCI {a l} (S : Setoid a l) where
 
-open import Common
+open import Common hiding (refl)
 
 open Setoid S renaming (C to A)
 
 record IsBCI (_·_ : A -> A -> A) (B C I : A) : Set (a ⊔ l) where
+  infixl 8 _·-cong_
   field
     Bxyz : forall x y z -> ((B · x) · y) · z ≈ x · (y · z)
     Cxyz : forall x y z -> ((C · x) · y) · z ≈ (x · z) · y
@@ -47,6 +48,21 @@ record BCI! : Set (a ⊔ l) where
 module BCI-Combinators (Alg : BCI) where
   open BCI Alg
 
-  infixr 5 _,A_
-  _,A_ : A -> A -> A
-  a ,A b = C · (C · I · a) · b
+  infixr 5 _,C_
+  _,C_ : A -> A -> A
+  a ,C b = C · (C · I · a) · b
+
+  appC : A
+  appC = C · I · I
+
+  appC-comp : forall a b -> appC · (a ,C b) ≈ a · b
+  appC-comp a b =
+    appC · (a ,C b)                    ≈[ refl ]≈
+    C · I · I · (C · (C · I · a) · b)  ≈[ Cxyz _ _ _ ]≈
+    I · (C · (C · I · a) · b) · I      ≈[ Ix _ ·-cong refl ]≈
+    C · (C · I · a) · b · I            ≈[ Cxyz _ _ _ ]≈
+    C · I · a · I · b                  ≈[ Cxyz _ _ _ ·-cong refl ]≈
+    I · I · a · b                      ≈[ Ix _ ·-cong refl ·-cong refl ]≈
+    I · a · b                          ≈[ Ix _ ·-cong refl ]≈
+    a · b                              QED
+    where open SetoidReasoning S

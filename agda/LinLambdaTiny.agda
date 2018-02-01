@@ -487,3 +487,62 @@ module WithBCIρ {a l} (S : Setoid a l) (Alg : BCIρ S _ semiring) where
   GD-asm : forall {n} (G : QCtx n) (D : Ctx n) -> Assembly _ _ _
   GD-asm nil nil = LiftA {r' = a} oneA
   GD-asm (ρ :: G) (T :: D) = pairA (bangA ρ (T-asm T)) (GD-asm G D)
+
+  sA : forall {n} {G Ge Gs : QCtx n} {D : Ctx n} {S T} -> G ≤G Ge +G Gs ->
+       GD-asm Ge D =A> (T-asm S ->A T-asm T) -> GD-asm Gs D =A> T-asm S ->
+       GD-asm G D =A> T-asm T
+  sA sub F G = record
+    { f = record { _$E_ = \ gd -> {!!} ; _$E=_ = {!!} }
+    ; af = {!!}
+    ; realises = {!!}
+    }
+    where
+    module F = _=A>_ F
+
+  interpret : forall {n G D d T} {t : Term n d} -> G |-r t -> D |-t t :-: T ->
+              GD-asm G D =A> T-asm T
+  interpret (var sub) (var {th = th}) = record
+    { f = f th sub
+    ; af = af th
+    ; realises = {!!}
+    }
+    where
+    f : forall {n G D} (th : 1 ≤th n) -> G ≤G varQCtx th e1 ->
+         Assembly.U (GD-asm G D) ->E Assembly.U (T-asm (1≤th-index th D))
+    f {succ n} {rho :: G} {T :: D} (os th) (le :: sub) = fstE
+    f {succ n} {rho :: G} {T :: D} (o' th) (le :: sub) = f th sub oE sndE
+
+    af : forall {n} (th : 1 ≤th n) -> A
+    af (os th) = {!!}
+    af (o' th) = B · af th · appC
+
+    realises : forall {n G D} (th : 1 ≤th n) (sub : G ≤G varQCtx th e1) ->
+               let module GD = Assembly (GD-asm G D) in
+               let module T = Assembly (T-asm (1≤th-index th D)) in
+               forall {u au} -> au GD.|= u -> af th · au T.|= f th sub $E u
+    realises {succ n} {rho :: G} {T :: D} (os th) (le :: sub) {uv , uw} {au} (av , aw , auq , rv , rw) =
+      {!le!}
+    realises {succ n} {rho :: G} {T :: D} (o' th) (le :: sub) {uv , uw} {au} (av , aw , auq , rv , rw) = |=-resp (sym-≈ eq) (Setoid.refl U) (realises th sub rw)
+      where
+      open Assembly (T-asm (1≤th-index th D)) using (|=-resp; U)
+      open SetoidReasoning S
+
+      av≈I : av ≈ I
+      av≈I = {!!0.realises rv!}
+        where
+        module !0 = _=A>_ (bangA-0 (T-asm T))
+
+      eq : B · af th · appC · au ≈ af th · aw
+      eq =
+        B · af th · appC · au        ≈[ Bxyz (af th) appC au ]≈
+        af th · (appC · au)          ≈[ refl-≈ ·-cong
+          (appC · au          ≈[ refl-≈ ·-cong auq ]≈
+           appC · (av ,C aw)  ≈[ appC-comp av aw ]≈
+           av · aw            ≈[ av≈I ·-cong refl-≈ ]≈
+           I · aw             ≈[ Ix aw ]≈
+           aw                 QED)   ]≈
+        af th · aw                   QED
+  interpret (app split er sr) (app et st) = {!interpret er et , interpret sr st!}
+  interpret (the sr) (the st) = interpret sr st
+  interpret (lam sr) (lam st) = {!interpret sr st!}
+  interpret [ er ] [ et ] = interpret er et
