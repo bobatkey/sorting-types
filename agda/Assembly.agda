@@ -19,16 +19,18 @@ record Assembly c e r : Set (lsuc (c ⊔ e ⊔ r) ⊔ a ⊔ l) where
 
   open Setoid U public
 
-record _=A>_ {c e r} (B C : Assembly c e r) : Set (lsuc (c ⊔ e ⊔ r) ⊔ a) where
+record _=A>_ {c e r c' e' r'} (B : Assembly c e r) (C : Assembly c' e' r')
+              : Set (lsuc (c ⊔ e ⊔ r ⊔ c' ⊔ e' ⊔ r') ⊔ a) where
   private
     module B = Assembly B
     module C = Assembly C
   field
-    f : PiE B.U (unindexed C.U)
+    f : B.U ->E C.U
     af : A
     realises : forall {u au} -> au B.|= u -> (af · au) C.|= (f $E u)
 
-ArrA : forall {c e r} (B C : Assembly c e r) -> Setoid _ _
+ArrA : forall {c e r c' e' r'}
+       (B : Assembly c e r) (C : Assembly c' e' r') -> Setoid _ _
 ArrA B C =
   Subsetoid (Setoid.setoidOver (B.U ->S C.U))
             \ f -> Sg A \ af -> forall {u au} ->       au  B.|=       u ->
@@ -87,18 +89,19 @@ pairA B C = record
   open Setoid U using () renaming (C to ∣U∣; _≈_ to _≈U_)
 
   _|=_ : A -> ∣U∣ -> Set _
-  a |= (u , v) = Sg _ \ au -> Sg _ \ av -> a ≈ au ,A av × au B.|= u × av C.|= v
+  a |= (u , v) = Sg _ \ au -> Sg _ \ av -> a ≈ au ,C av × au B.|= u × av C.|= v
 
   realised : forall u -> Sg _ \ a -> a |= u
   realised (u , v) = let au , ru = B.realised u in
                      let av , rv = C.realised v in
-                     au ,A av , au , av , refl , ru , rv
+                     au ,C av , au , av , refl , ru , rv
 
   |=-resp : forall {a a' u u'} -> a ≈ a' -> u ≈U u' -> a |= u -> a' |= u'
   |=-resp aq (uq , vq) (au , av , split , ru , rv) =
     au , av , trans (sym aq) split , B.|=-resp refl uq ru , C.|=-resp refl vq rv
 
-_->A_ : forall {c e r} (B C : Assembly c e r) -> Assembly _ _ _
+_->A_ : forall {c e r c' e' r'}
+        (B : Assembly c e r) (C : Assembly c' e' r') -> Assembly _ _ _
 B ->A C = record
   { U = U
   ; _|=_ = _|=_

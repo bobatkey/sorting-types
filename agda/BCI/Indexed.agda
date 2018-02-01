@@ -13,7 +13,7 @@ private
 open Semiring semiring
 
 record IsBCIρ (_·_ : A -> A -> A) (B C I K D : A) (W δ : (π ρ : R.C) -> A)
-                (F : R.C -> A) (! : R.C -> A -> A) : Set (a ⊔ l ⊔ b) where
+              (F : R.C -> A) (! : R.C -> A -> A) : Set (a ⊔ l ⊔ b) where
   field
     Kx!y  : forall x y     ->          (K · x) · ! e0 y ≈ x
     Wx!y  : forall π ρ x y -> (W π ρ · x) · ! (π + ρ) y ≈ (x · ! π y) · ! ρ y
