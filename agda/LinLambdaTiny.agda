@@ -468,15 +468,16 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   toBCIs-T≈ [ er ] [ et ] d = toBCIs-T≈ er et d
 
 open import BCI.Indexed
+open import BCI.Indexed.Ordered
 
---module WithBCIρ {a b l m} (S : Setoid a l) (R : Setoid b m) (Rs : Semiring R) (Alg : BCIρ S R Rs) where
-module WithBCIρ {a l} (S : Setoid a l) (Alg : BCIρ S _ semiring) where
+module WithBCIρ≤ {a l} (S : Setoid a l) (Alg : BCIρ≤ S _ posemiring) where
   open Setoid S renaming (C to A; refl to refl-≈; sym to sym-≈; trans to trans-≈)
-  open BCIρ Alg
+  open BCIρ≤ Alg
   open WithBCI S bci
   open BCI-Combinators S bci
   open import Assembly bci
-  open import Assembly.Indexed Alg
+  open import Assembly.Indexed bciρ
+  open import Assembly.Indexed.Ordered Alg
 
   -- realisability
 
@@ -521,16 +522,18 @@ module WithBCIρ {a l} (S : Setoid a l) (Alg : BCIρ S _ semiring) where
                let module T = Assembly (T-asm (1≤th-index th D)) in
                forall {u au} -> au GD.|= u -> af th · au T.|= f th sub $E u
     realises {succ n} {rho :: G} {T :: D} (os th) (le :: sub) {uv , uw} {au} (av , aw , auq , rv , rw) =
-      {!le!}
-    realises {succ n} {rho :: G} {T :: D} (o' th) (le :: sub) {uv , uw} {au} (av , aw , auq , rv , rw) = |=-resp (sym-≈ eq) (Setoid.refl U) (realises th sub rw)
+      {!bangA-≤ le!}
+    realises {succ n} {rho :: G} {T :: D} (o' th) (le :: sub) {uv , uw} {au} (av , aw , auq , rv , rw) =
+      |=-resp (sym-≈ eq) (Setoid.refl U) (realises th sub rw)
       where
       open Assembly (T-asm (1≤th-index th D)) using (|=-resp; U)
       open SetoidReasoning S
 
       av≈I : av ≈ I
-      av≈I = {!!0.realises rv!}
+      av≈I = {!(ρ≤0.realises rv)!}
         where
         module !0 = _=A>_ (bangA-0 (T-asm T))
+        module ρ≤0 = _=A>_ (bangA-≤ le (T-asm T))
 
       eq : B · af th · appC · au ≈ af th · aw
       eq =
@@ -542,7 +545,7 @@ module WithBCIρ {a l} (S : Setoid a l) (Alg : BCIρ S _ semiring) where
            I · aw             ≈[ Ix aw ]≈
            aw                 QED)   ]≈
         af th · aw                   QED
-  interpret (app split er sr) (app et st) = {!interpret er et , interpret sr st!}
+  interpret (app split er sr) (app et st) = {!interpret er et , interpret sr st!}  -- S combinator
   interpret (the sr) (the st) = interpret sr st
-  interpret (lam sr) (lam st) = {!interpret sr st!}
+  interpret (lam sr) (lam st) = {!interpret sr st!}  -- curry
   interpret [ er ] [ et ] = interpret er et
