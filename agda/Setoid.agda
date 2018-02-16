@@ -191,6 +191,22 @@ sndE : forall {a b l m} {A : Setoid a l} {B : Setoid b m} ->
        A ×S B ->E B
 sndE = record { _$E_ = \ { (a , b) -> b } ; _$E=_ = \ { (aq , bq) -> bq } }
 
+map×S : forall {a a' b b' l l' m m'}
+        {A : Setoid a l} {A' : Setoid a' l'}
+        {B : Setoid b m} {B' : Setoid b' m'} ->
+        A ->E A' -> B ->E B' -> A ×S B ->E A' ×S B'
+map×S f g = record
+  { _$E_ = \ { (a , b) -> f $E a , g $E b }
+  ; _$E=_ = \ { (aq , bq) -> f $E= aq , g $E= bq }
+  }
+
+pmS : forall {a b c l m n} {A : Setoid a l} {B : Setoid b m} {C : Setoid c n} ->
+      A ->E (B ->S C) -> A ×S B ->E C
+pmS f = record
+  { _$E_ = \ { (x , y) -> f $E x $E y }
+  ; _$E=_ = \ { (xq , yq) -> (f $E= xq) yq }
+  }
+
 --sndE : forall {a b l m} {A : Setoid a l} {B : SetoidI (Setoid.C A) b m} ->
 --       PiE (SgS A B) (lamS \ { (a , b) -> B $S a })
 --sndE = record

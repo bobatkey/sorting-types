@@ -19,16 +19,6 @@ record Assembly c e r : Set (lsuc (c ⊔ e ⊔ r) ⊔ a ⊔ l) where
 
   open Setoid U public
 
-record _=A>_ {c e r c' e' r'} (B : Assembly c e r) (C : Assembly c' e' r')
-              : Set (lsuc (c ⊔ e ⊔ r ⊔ c' ⊔ e' ⊔ r') ⊔ a) where
-  private
-    module B = Assembly B
-    module C = Assembly C
-  field
-    f : B.U ->E C.U
-    af : A
-    realises : forall {u au} -> au B.|= u -> (af · au) C.|= (f $E u)
-
 ArrA : forall {c e r c' e' r'}
        (B : Assembly c e r) (C : Assembly c' e' r') -> Setoid _ _
 ArrA B C =
@@ -63,6 +53,26 @@ ASSEMBLY c e r = record
     , λ {u} {au} r ->
       Assembly.|=-resp C (sym (Bxyz ag af au)) (Assembly.refl C) (rg (rf r))
 
+_=A>_ : forall {c e r c' e' r'}
+         (B : Assembly c e r) (C : Assembly c' e' r') -> Set _
+B =A> C = Setoid.C (ArrA B C)
+
+-- pseudo-record, because _=A>_ is the result of Setoid combinators
+module _=A>_ {c e r c' e' r'} {B : Assembly c e r} {C : Assembly c' e' r'}
+             (arr : B =A> C) where
+  private
+    module B = Assembly B
+    module C = Assembly C
+
+  f : B.U ->E C.U
+  f = fst arr
+
+  af : A
+  af = fst (snd arr)
+
+  realises : forall {u au} -> au B.|= u -> af · au C.|= f $E u
+  realises = snd (snd arr)
+
 -- combinators on assemblies
 
 open BCI-Combinators _ Alg
@@ -75,7 +85,8 @@ oneA = record
   ; |=-resp = \ aq _ r -> trans (sym aq) r
   }
 
-pairA : forall {c e r} (B C : Assembly c e r) -> Assembly c e (a ⊔ l ⊔ r)
+pairA : forall {c e r c' e' r'} (B : Assembly c e r) (C : Assembly c' e' r') ->
+        Assembly (c ⊔ c') (e ⊔ e') (a ⊔ l ⊔ r ⊔ r')
 pairA B C = record
   { U = U
   ; _|=_ = _|=_
@@ -100,6 +111,36 @@ pairA B C = record
   |=-resp aq (uq , vq) (au , av , split , ru , rv) =
     au , av , trans (sym aq) split , B.|=-resp refl uq ru , C.|=-resp refl vq rv
 
+mapPairA : forall {cb cb' cc cc' eb eb' ec ec' rb rb' rc rc'}
+           {B : Assembly cb eb rb} {B' : Assembly cb' eb' rb'}
+           {C : Assembly cc ec rc} {C' : Assembly cc' ec' rc'} ->
+           B =A> B' -> C =A> C' -> pairA B C =A> pairA B' C'
+mapPairA {B' = B'} {C' = C'} (f , af , rf) (g , ag , rg) =
+  map×S f g , pmC · (C · (B · B · (B · pairC · af)) · ag)
+  , \ { {v , w} {au} (av , aw , auq , rv , rw) ->
+      af · av , ag · aw
+      , pmC · (C · (B · B · (B · pairC · af)) · ag) · au
+          ≈[ refl ·-cong auq ]≈
+        pmC · (C · (B · B · (B · pairC · af)) · ag) · (av ,C aw)
+          ≈[ pmC-comp _ _ _ ]≈
+        C · (B · B · (B · pairC · af)) · ag · av · aw
+          ≈[ Cxyz _ _ _ ·-cong refl ]≈
+        B · B · (B · pairC · af) · av · ag · aw
+          ≈[ Bxyz _ _ _ ·-cong refl ·-cong refl ]≈
+        B · (B · pairC · af · av) · ag · aw
+          ≈[ refl ·-cong Bxyz _ _ _ ·-cong refl ·-cong refl ]≈
+        B · (pairC · (af · av)) · ag · aw
+          ≈[ Bxyz _ _ _ ]≈
+        pairC · (af · av) · (ag · aw)
+          ≈[ pairC-comp _ _ ]≈
+        af · av ,C ag · aw
+          QED
+      , rf rv , rg rw
+      }
+  where
+  open Assembly (pairA B' C') using (|=-resp)
+  open SetoidReasoning S
+
 _->A_ : forall {c e r c' e' r'}
         (B : Assembly c e r) (C : Assembly c' e' r') -> Assembly _ _ _
 B ->A C = record
@@ -122,6 +163,27 @@ B ->A C = record
 
   |=-resp : forall {a a' u u'} -> a ≈ a' -> u ≈U u' -> a |= u -> a' |= u'
   |=-resp {a} {a'} {uf , af , rf} {uf' , af' , rf'} aq (fq , <>) r rx = rf' rx
+
+pmA : forall {cb eb rb cc ec rc cd ed rd}
+      {B : Assembly cb eb rb} {C : Assembly cc ec rc} {D : Assembly cd ed rd} ->
+      B =A> (C ->A D) -> pairA B C =A> D
+pmA {D = D} (f , af , rf) =
+  pmS (record { _$E_ = \ b -> fst (f $E b)
+              ; _$E=_ = \ {b} {b'} bq {c} {c'} cq -> fst (f $E= bq) cq
+              })
+  , pmC · af
+  , \ { {b , c} {au} (ab , ac , auq , rb , rc) ->
+      |=-resp
+        (sym (pmC · af · au  ≈[ {!!} ]≈
+              pmC · af · (ab ,C ac)  ≈[ {!!} ]≈
+              af · ab · ac  ≈[ {!!} ]≈
+              fst (snd (f $E b)) · ac  QED))
+        {!!}
+        (rf rb rc)
+      }
+  where
+  open Assembly D using (|=-resp)
+  open SetoidReasoning S
 
 LiftA : forall {c e r c' e' r'} ->
         Assembly c e r -> Assembly (c ⊔ c') (e ⊔ e') (r ⊔ r')

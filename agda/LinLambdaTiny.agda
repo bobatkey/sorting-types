@@ -1,6 +1,7 @@
 module LinLambdaTiny where
 
 open import Common hiding (Ctx; [[_]]T) renaming (_*_ to _×_)
+open import Category as Category'
 
 open import Setoid as Setoid'
 open import Structure
@@ -285,6 +286,47 @@ module WithBCI {a l} (S : Setoid a l) (Alg : BCI S) where
   toBCI : forall {n d G} {t : Term n d} -> G |-r t -> (1 ≤th n -> A) -> A
   toBCI tr f = ⟦ toBCIs tr ⟧ f
 
+  -- Some helpers for writing BCI terms
+
+  ∉s-∈!s : forall {n} {v : 1 ≤th n} {M : BCIs n} -> v ∉s M -> v ∈!s M -> Zero
+  ∉s-∈!s (vars neq) vars = neq refl
+  ∉s-∈!s (noM ·s noN) (inM ·s-l _) = ∉s-∈!s noM inM
+  ∉s-∈!s (noM ·s noN) (_ ·s-r inN) = ∉s-∈!s noN inN
+
+  _∉s?_ : forall {n} (v : 1 ≤th n) (M : BCIs n) -> Dec (v ∉s M)
+  v ∉s? vars x = mapDec vars (\ { (vars neq) → neq }) (Not? (v ==th? x))
+  v ∉s? Bs = yes Bs
+  v ∉s? Cs = yes Cs
+  v ∉s? Is = yes Is
+  v ∉s? (M ·s N) =
+    v ∉s? M >>=[ (\ { (z ·s _) -> z }) ] \ noM ->
+    v ∉s? N >>=[ (\ { (_ ·s z) -> z }) ] \ noN ->
+    yes (noM ·s noN)
+
+  _∈!s?_ : forall {n} (v : 1 ≤th n) (M : BCIs n) -> Dec (v ∈!s M)
+  v ∈!s? vars x = mapDec (\ { refl -> vars }) (\ { vars -> refl }) (v ==th? x)
+  v ∈!s? Bs = no \ ()
+  v ∈!s? Cs = no \ ()
+  v ∈!s? Is = no \ ()
+  v ∈!s? (M ·s N) with v ∈!s? M | v ∈!s? N
+  v ∈!s? (M ·s N) | yes inM | yes inN =
+    no \ { (inM ·s-l noN) → ∉s-∈!s noN inN ; (noM ·s-r inN) → ∉s-∈!s noM inM }
+  v ∈!s? (M ·s N) | yes inM | no noN =
+    mapDec (inM ·s-l_)
+           (\ { (inM ·s-l noN) -> noN ; (noM ·s-r inN) -> Zero-elim (noN inN) })
+           (v ∉s? N)
+  v ∈!s? (M ·s N) | no noM | yes inN =
+    mapDec (_·s-r inN)
+           (\ { (inM ·s-l noN) -> Zero-elim (noM inM) ; (noM ·s-r inN) -> noM })
+           (v ∉s? M)
+  v ∈!s? (M ·s N) | no noM | no noN =
+    no \ { (inM ·s-l noN) → noM inM ; (noM ·s-r inN) → noN inN }
+
+  λ0 : forall {n} (M : BCIs (succ n)) {_ : Auto (zeroth ∉s? M)} -> BCIs n
+  λ0 M {prf} = elimUnused {M = M} (toWitness prf)
+
+  λ1 : forall {n} (M : BCIs (succ n)) {_ : Auto (zeroth ∈!s? M)} -> BCIs n
+  λ1 M {prf} = elimUsed {M = M} (toWitness prf)
 
   -- Typed BCI
 
@@ -485,27 +527,60 @@ module WithBCIρ≤ {a l} (S : Setoid a l) (Alg : BCIρ≤ S _ posemiring) where
   T-asm BASE = LiftA {r' = a} oneA
   T-asm (S ~> T) = T-asm S ->A T-asm T
 
-  GD-asm : forall {n} (G : QCtx n) (D : Ctx n) -> Assembly _ _ _
+  GD-asm : forall {n} (G : QCtx n) (D : Ctx n) ->
+           Assembly (a ⊔ l) (a ⊔ l) (a ⊔ l)
   GD-asm nil nil = LiftA {r' = a} oneA
   GD-asm (ρ :: G) (T :: D) = pairA (bangA ρ (T-asm T)) (GD-asm G D)
 
-  sA : forall {n} {G Ge Gs : QCtx n} {D : Ctx n} {S T} -> G ≤G Ge +G Gs ->
-       GD-asm Ge D =A> (T-asm S ->A T-asm T) -> GD-asm Gs D =A> T-asm S ->
-       GD-asm G D =A> T-asm T
-  sA sub F G = record
-    { f = record { _$E_ = \ gd -> {!!} ; _$E=_ = {!!} }
-    ; af = {!!}
-    ; realises = {!!}
-    }
+  splitA : forall {n} {G Ge Gs : QCtx n} (D : Ctx n) -> G ≤G Ge +G Gs ->
+           GD-asm G D =A> pairA (GD-asm Ge D) (GD-asm Gs D)
+  splitA {zero} {nil} {nil} {nil} nil nil =
+    constE $E (lift <> , lift <>)
+    , C · (C · I · I)
+    , \ { (lift aq) -> I , I , eq _ aq , lift refl-≈ , lift refl-≈ }
     where
-    module F = _=A>_ F
+    open SetoidReasoning S
 
+    eq : forall au -> au ≈ I -> _
+    eq au aq =
+      C · (C · I · I) · au  ≈[ refl-≈ ·-cong aq ]≈
+      C · (C · I · I) · I   ≈[ refl-≈ ]≈
+      I ,C I                QED
+  splitA {succ n} {rho :: G} {rhoe :: Ge} {rhos :: Gs} (T :: D) (le :: split) =
+    let if , ia , ir = splitA D split in
+    record { _$E_ = \ { (rhot , gd) -> let ged , gsd = if $E gd in
+                                       (rhot , ged) , ({!!} , gsd) }
+           ; _$E=_ = {!!}
+           }
+    , {!ir!}
+    , \ { {v , w} {au} (av , aw , auq , (ax , avq , rx) , rw) ->
+        let ay , az , iaq , ry , rz = ir rw in
+        let
+          pairCs : forall {n} -> BCIs n
+          pairCs = Bs ·s Cs ·s (Cs ·s Is)
+
+          foo : BCIs zero
+          foo = λ1 (λ1 (Cs ·s Is ·s (Cs ·s (Bs ·s Bs ·s (Bs ·s pairCs ·s (pairCs ·s vars (o' zeroth))))
+                                        ·s (pairCs ·s vars zeroth))))
+        in
+        {!ir rw!} , {!!}
+        , pmC · (W rhoe rhos · ⟦ foo ⟧ \ ()) · au  ≈[ refl-≈ ·-cong auq ]≈
+          {!!} · (av ,C aw)  ≈[ refl-≈ ·-cong (avq ,C-cong {!awq!}) ]≈
+          {!!} · (! rho ax ,C (ay ,C az))  ≈[ {!? ·-cong (avq ,C-cong ?)!} ]≈
+          (! rhoe ax ,C ay) ,C (! rhos ax ,C az)  QED
+        , (! rhoe ax , ay , refl-≈ , (ax , refl-≈ , rx) , ry)
+        , (! rhos ax , az , refl-≈ , (ax , refl-≈ , rx) , rz)
+        }
+    where
+    open SetoidReasoning S
+
+  {-+}
   interpret : forall {n G D d T} {t : Term n d} -> G |-r t -> D |-t t :-: T ->
               GD-asm G D =A> T-asm T
   interpret (var sub) (var {th = th}) = record
     { f = f th sub
     ; af = af th
-    ; realises = {!!}
+    ; realises = realises th sub
     }
     where
     f : forall {n G D} (th : 1 ≤th n) -> G ≤G varQCtx th e1 ->
@@ -514,15 +589,27 @@ module WithBCIρ≤ {a l} (S : Setoid a l) (Alg : BCIρ≤ S _ posemiring) where
     f {succ n} {rho :: G} {T :: D} (o' th) (le :: sub) = f th sub oE sndE
 
     af : forall {n} (th : 1 ≤th n) -> A
-    af (os th) = {!!}
+    af (os th) = app-flipC
     af (o' th) = B · af th · appC
 
     realises : forall {n G D} (th : 1 ≤th n) (sub : G ≤G varQCtx th e1) ->
                let module GD = Assembly (GD-asm G D) in
                let module T = Assembly (T-asm (1≤th-index th D)) in
                forall {u au} -> au GD.|= u -> af th · au T.|= f th sub $E u
-    realises {succ n} {rho :: G} {T :: D} (os th) (le :: sub) {uv , uw} {au} (av , aw , auq , rv , rw) =
-      {!bangA-≤ le!}
+    realises {succ n} {rho :: G} {T :: D} (os th) (le :: sub) {uv , uw} {au} (av , aw , auq , (az , avq , rz) , rw) =
+      |=-resp (sym-≈ {!!}) T.refl rz
+      where
+      open module T = Assembly (T-asm T) using (|=-resp; U)
+      open SetoidReasoning S
+
+      eq : app-flipC · au ≈ az
+      eq =
+        app-flipC · au          ≈[ refl-≈ ·-cong auq ]≈
+        app-flipC · (av ,C aw)  ≈[ app-flipC-comp av aw ]≈
+        aw · av                 ≈[ {!rw!} ]≈
+        I · av                  ≈[ {!!} ]≈
+        av                      ≈[ {!avq!} ]≈
+        az                      QED
     realises {succ n} {rho :: G} {T :: D} (o' th) (le :: sub) {uv , uw} {au} (av , aw , auq , rv , rw) =
       |=-resp (sym-≈ eq) (Setoid.refl U) (realises th sub rw)
       where
@@ -547,5 +634,49 @@ module WithBCIρ≤ {a l} (S : Setoid a l) (Alg : BCIρ≤ S _ posemiring) where
         af th · aw                   QED
   interpret (app split er sr) (app et st) = {!interpret er et , interpret sr st!}  -- S combinator
   interpret (the sr) (the st) = interpret sr st
-  interpret (lam sr) (lam st) = {!interpret sr st!}  -- curry
+  interpret {G = G'} {D'} (lam sr) (lam {S = S'} {T'} st) = record  -- curry
+    { f = record
+      { _$E_ = \ gd -> (record { _$E_ = \ s -> f $E (s , gd)
+                               ; _$E=_ = \ sq -> f $E= (sq , GD.refl)
+                               })
+                     , B · (B · af · (C · (B · C · (C · I)) · fst (GD.realised gd))) · D
+                     , \ {s} {as} r -> T.|=-resp
+                       --(sym-≈ (Bxyz _ _ _))
+                       (sym-≈ (B · (B · af · (C · (B · C · (C · I)) · fst (GD.realised gd))) · D · as  ≈[ {!!} ]≈
+                               B · af · (C · (B · C · (C · I)) · fst (GD.realised gd)) · (D · as)      ≈[ {!!} ]≈
+                               af · ((C · (B · C · (C · I)) · fst (GD.realised gd)) · (D · as))        QED ))
+                       (f $E= (S.refl , GD.refl))
+                       (realises (! e1 as , fst (GD.realised gd)
+                                 , {!!}
+                                   --C · (B · C · (C · I)) · fst (GD.realised gd) · as  ≈[ Cxyz _ _ _ ]≈
+                                   --B · C · (C · I) · as · fst (GD.realised gd)  ≈[ Bxyz _ _ _ ·-cong refl-≈ ]≈
+                                   --C · (C · I · as) · fst (GD.realised gd)  ≈[ refl-≈ ]≈
+                                   --as ,C fst (GD.realised gd)  QED
+                                 , (as , refl-≈ , r)
+                                 , snd (GD.realised gd)))
+      ; _$E=_ = \ gdq -> (\ sq -> f $E= (sq , gdq)) , <>
+      }
+    ; af = {!!}
+    ; realises = {!realises!}
+    }
+    where
+    open SetoidReasoning S
+    open module IH = _=A>_ (interpret sr st)
+    module S = Assembly (T-asm S')
+    module T = Assembly (T-asm T')
+    module GD = Assembly (GD-asm G' D')
+  interpret [ er ] [ et ] = interpret er et
+  {+-}
+
+  interpret : forall {n G D d T} {t : Term n d} -> G |-r t -> D |-t t :-: T ->
+               GD-asm G D =A> T-asm T
+  interpret (var sub) var = {!!}
+  interpret (app split er sr) (app et st) =
+    let fe , ae , re = interpret er et in
+    let fs , as , rs = interpret sr st in
+    {!fe , fs!} , {!ae · as!} , \ gdr -> {!splitA _ split >> mapPairA (interpret er et) (interpret sr st)!}
+    where
+    open Category (ASSEMBLY _ _ _)
+  interpret (the sr) (the st) = interpret sr st
+  interpret (lam sr) (lam st) = {!!}
   interpret [ er ] [ et ] = interpret er et

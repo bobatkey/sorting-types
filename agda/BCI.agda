@@ -2,7 +2,7 @@ open import Setoid as Setoid'
 
 module BCI {a l} (S : Setoid a l) where
 
-open import Common hiding (refl)
+open import Common hiding (refl; sym)
 
 open Setoid S renaming (C to A)
 
@@ -48,21 +48,57 @@ record BCI! : Set (a ⊔ l) where
 module BCI-Combinators (Alg : BCI) where
   open BCI Alg
 
-  infixr 5 _,C_
+  open SetoidReasoning S
+
+  infixr 5 _,C_ _,C-cong_
   _,C_ : A -> A -> A
   a ,C b = C · (C · I · a) · b
 
+  ,C-comp : forall a b f -> (a ,C b) · f ≈ f · a · b
+  ,C-comp a b f =
+    (a ,C b) · f             ≈[ refl ]≈
+    C · (C · I · a) · b · f  ≈[ Cxyz _ _ _ ]≈
+    C · I · a · f · b        ≈[ Cxyz _ _ _ ·-cong refl ]≈
+    I · f · a · b            ≈[ Ix _ ·-cong refl ·-cong refl ]≈
+    f · a · b                QED
+
+  _,C-cong_ : forall {a a' b b'} -> a ≈ a' -> b ≈ b' -> a ,C b ≈ a' ,C b'
+  aq ,C-cong bq = refl ·-cong (refl ·-cong aq) ·-cong bq
+
+  pairC : A
+  pairC = B · C · (C · I)
+
+  pairC-comp : forall a b -> pairC · a · b ≈ a ,C b
+  pairC-comp a b = Bxyz _ _ _ ·-cong refl
+
+  pmC : A
+  pmC = C · I
+
+  pmC-comp : forall f a b -> pmC · f · (a ,C b) ≈ f · a · b
+  pmC-comp f a b =
+    pmC · f · (a ,C b)    ≈[ refl ]≈
+    C · I · f · (a ,C b)  ≈[ Cxyz _ _ _ ]≈
+    I · (a ,C b) · f      ≈[ Ix _ ·-cong refl ]≈
+    (a ,C b) · f          ≈[ ,C-comp _ _ _ ]≈
+    f · a · b             QED
+
   appC : A
-  appC = C · I · I
+  appC = pmC · I
 
   appC-comp : forall a b -> appC · (a ,C b) ≈ a · b
   appC-comp a b =
     appC · (a ,C b)                    ≈[ refl ]≈
-    C · I · I · (C · (C · I · a) · b)  ≈[ Cxyz _ _ _ ]≈
-    I · (C · (C · I · a) · b) · I      ≈[ Ix _ ·-cong refl ]≈
-    C · (C · I · a) · b · I            ≈[ Cxyz _ _ _ ]≈
-    C · I · a · I · b                  ≈[ Cxyz _ _ _ ·-cong refl ]≈
-    I · I · a · b                      ≈[ Ix _ ·-cong refl ·-cong refl ]≈
+    pmC · I · (a ,C b)                 ≈[ pmC-comp _ _ _ ]≈
     I · a · b                          ≈[ Ix _ ·-cong refl ]≈
     a · b                              QED
-    where open SetoidReasoning S
+
+  app-flipC : A
+  app-flipC = pmC · (C · I)
+
+  app-flipC-comp : forall a b -> app-flipC · (a ,C b) ≈ b · a
+  app-flipC-comp a b =
+    app-flipC · (a ,C b)           ≈[ refl ]≈
+    pmC · (C · I) · (a ,C b)       ≈[ pmC-comp _ _ _ ]≈
+    (C · I) · a · b                ≈[ Cxyz _ _ _ ]≈
+    I · b · a                      ≈[ Ix _ ·-cong refl ]≈
+    b · a                          QED

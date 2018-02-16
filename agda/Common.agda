@@ -153,6 +153,10 @@ mapDec : forall {x y X Y} -> (X -> Y) -> (Y -> X) -> Dec {x} X -> Dec {y} Y
 mapDec f g (yes p) = yes (f p)
 mapDec f g (no np) = no (λ z → np (g z))
 
+Not? : forall {x X} -> Dec {x} X -> Dec (Not X)
+Not? (yes p) = no \ np -> np p
+Not? (no np) = yes np
+
 floor : forall {x X} -> Dec {x} X -> Two
 floor (yes p) = tt
 floor (no np) = ff

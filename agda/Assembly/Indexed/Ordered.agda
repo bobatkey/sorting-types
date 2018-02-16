@@ -20,16 +20,14 @@ open import Assembly.Indexed bciρ
 
 bangA-≤ : forall {c e r π ρ} (le : π ≤ ρ) (B : Assembly c e r) ->
           bangA π B =A> bangA ρ B
-bangA-≤ {π = π} {ρ} le B = record
-  { f = idE _
-  ; af = u le
-  ; realises = \ { {_} {au} (av , aq , r) ->
-                 av
-                 , u le · au      ≈[ refl ·-cong aq ]≈
-                   u le · ! π av  ≈[ u!x le av ]≈
-                   ! ρ av         QED
-                 , r }
-  }
+bangA-≤ {π = π} {ρ} le B =
+  idE _ , u le , \ { {_} {au} (av , auq , r) ->
+                   av
+                   , u le · au      ≈[ refl ·-cong auq ]≈
+                     u le · ! π av  ≈[ u!x le av ]≈
+                     ! ρ av         QED
+                   , r
+                   }
   where
   module B = Assembly B
   open SetoidReasoning S
